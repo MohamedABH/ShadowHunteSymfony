@@ -34,9 +34,9 @@ class Game
     private Collection $messages;
 
     /**
-     * @var Collection<int, User>
+     * @var Collection<int, Player>
      */
-    #[ORM\OneToMany(targetEntity: User::class, mappedBy: 'game')]
+    #[ORM\OneToMany(targetEntity: Player::class, mappedBy: 'game', orphanRemoval: true)]
     private Collection $players;
 
     public function __construct()
@@ -136,14 +136,14 @@ class Game
     }
 
     /**
-     * @return Collection<int, User>
+     * @return Collection<int, Player>
      */
     public function getPlayers(): Collection
     {
         return $this->players;
     }
 
-    public function addPlayer(User $player): static
+    public function addPlayer(Player $player): static
     {
         if (!$this->players->contains($player)) {
             $this->players->add($player);
@@ -153,7 +153,7 @@ class Game
         return $this;
     }
 
-    public function removePlayer(User $player): static
+    public function removePlayer(Player $player): static
     {
         if ($this->players->removeElement($player)) {
             // set the owning side to null (unless already changed)
@@ -164,4 +164,5 @@ class Game
 
         return $this;
     }
+
 }

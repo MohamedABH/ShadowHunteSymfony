@@ -23,11 +23,11 @@ class Message
     private ?Card $card = null;
 
     #[ORM\ManyToOne(inversedBy: 'messages')]
-    private ?User $sender = null;
-
-    #[ORM\ManyToOne(inversedBy: 'messages')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Game $game = null;
+
+    #[ORM\ManyToOne(inversedBy: 'messages')]
+    private ?User $sender = null;
 
     public function getId(): ?int
     {
@@ -70,18 +70,6 @@ class Message
         return $this;
     }
 
-    public function getSender(): ?User
-    {
-        return $this->sender;
-    }
-
-    public function setSender(?User $sender): static
-    {
-        $this->sender = $sender;
-
-        return $this;
-    }
-
     public function getGame(): ?Game
     {
         return $this->game;
@@ -90,6 +78,18 @@ class Message
     public function setGame(?Game $game): static
     {
         $this->game = $game;
+
+        return $this;
+    }
+
+    public function getSender(): ?User
+    {
+        return $this->sender;
+    }
+
+    public function setSender(?User $sender): static
+    {
+        $this->sender = $sender;
 
         return $this;
     }
