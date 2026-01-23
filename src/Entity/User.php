@@ -34,6 +34,9 @@ class User
     #[ORM\OneToMany(targetEntity: Message::class, mappedBy: 'sender')]
     private Collection $messages;
 
+    #[ORM\ManyToOne(inversedBy: 'players')]
+    private ?Game $game = null;
+
     public function __construct()
     {
         $this->friends = new ArrayCollection();
@@ -119,6 +122,18 @@ class User
                 $message->setSender(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getGame(): ?Game
+    {
+        return $this->game;
+    }
+
+    public function setGame(?Game $game): static
+    {
+        $this->game = $game;
 
         return $this;
     }

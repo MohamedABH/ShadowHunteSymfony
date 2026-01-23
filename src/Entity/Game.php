@@ -33,10 +33,17 @@ class Game
     #[ORM\OneToMany(targetEntity: Message::class, mappedBy: 'game', orphanRemoval: true)]
     private Collection $messages;
 
+    /**
+     * @var Collection<int, User>
+     */
+    #[ORM\OneToMany(targetEntity: User::class, mappedBy: 'game')]
+    private Collection $players;
+
     public function __construct()
     {
         $this->locations = new ArrayCollection();
         $this->messages = new ArrayCollection();
+        $this->players = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -122,6 +129,36 @@ class Game
             // set the owning side to null (unless already changed)
             if ($message->getGame() === $this) {
                 $message->setGame(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    public function getPlayers(): Collection
+    {
+        return $this->players;
+    }
+
+    public function addPlayer(User $player): static
+    {
+        if (!$this->players->contains($player)) {
+            $this->players->add($player);
+            $player->setGame($this);
+        }
+
+        return $this;
+    }
+
+    public function removePlayer(User $player): static
+    {
+        if ($this->players->removeElement($player)) {
+            // set the owning side to null (unless already changed)
+            if ($player->getGame() === $this) {
+                $player->setGame(null);
             }
         }
 
