@@ -32,7 +32,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * @var list<string> The user roles
+     * @var list<Role> The user roles
      */
     #[ORM\Column]
     private array $roles = [];
@@ -125,7 +125,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * @param list<string> $roles
+     * @param list<Role> $roles
      */
     public function setRoles(array $roles): static
     {

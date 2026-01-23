@@ -34,9 +34,6 @@ class Player
     #[ORM\OneToMany(targetEntity: Clue::class, mappedBy: 'receiver', orphanRemoval: true)]
     private Collection $receivedClues;
 
-    #[ORM\ManyToOne(inversedBy: 'holder')]
-    private ?Location $location = null;
-
     #[ORM\ManyToOne(inversedBy: 'players')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Game $game = null;
@@ -46,7 +43,16 @@ class Player
     private ?User $user = null;
 
     #[ORM\ManyToOne(inversedBy: 'players')]
-    private ?Place $place = null;
+    private ?Position $position = null;
+
+    #[ORM\ManyToOne]
+    private ?CharacterCard $characterCard = null;
+
+    /**
+     * @var Collection<int, Location>
+     */
+    #[ORM\OneToMany(targetEntity: Location::class, mappedBy: 'player')]
+    private Collection $cards;
 
     public function __construct()
     {
@@ -143,18 +149,6 @@ class Player
         return $this;
     }
 
-    public function getLocation(): ?Location
-    {
-        return $this->location;
-    }
-
-    public function setLocation(?Location $location): static
-    {
-        $this->location = $location;
-
-        return $this;
-    }
-
     public function getGame(): ?Game
     {
         return $this->game;
@@ -179,14 +173,56 @@ class Player
         return $this;
     }
 
-    public function getPlace(): ?Place
+    public function getPosition(): ?Position
     {
-        return $this->place;
+        return $this->position;
     }
 
-    public function setPlace(?Place $place): static
+    public function setPosition(?Position $position): static
     {
-        $this->place = $place;
+        $this->position = $position;
+
+        return $this;
+    }
+
+    public function getCharacterCard(): ?CharacterCard
+    {
+        return $this->characterCard;
+    }
+
+    public function setCharacterCard(?CharacterCard $characterCard): static
+    {
+        $this->characterCard = $characterCard;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Location>
+     */
+    public function getCardss(): Collection
+    {
+        return $this->cards;
+    }
+
+    public function addCard(Location $card): static
+    {
+        if (!$this->cards->contains($card)) {
+            $this->cards->add($card);
+            $card->setPlayer($this);
+        }
+
+        return $this;
+    }
+
+    public function removeCard(Location $card): static
+    {
+        if ($this->cards->removeElement($card)) {
+            // set the owning side to null (unless already changed)
+            if ($card->getPlayer() === $this) {
+                $card->setPlayer(null);
+            }
+        }
 
         return $this;
     }

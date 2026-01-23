@@ -16,7 +16,7 @@ class Location
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $location = null;
+    private ?LocationEnum $location = null;
 
     #[ORM\ManyToOne(inversedBy: 'locations')]
     #[ORM\JoinColumn(nullable: false)]
@@ -24,34 +24,27 @@ class Location
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
-    private ?Card $card = null;
+    private ?ActionCard $actionCard = null;
 
-    /**
-     * @var Collection<int, Player>
-     */
-    #[ORM\OneToMany(targetEntity: Player::class, mappedBy: 'location')]
-    private Collection $holder;
-
-    #[ORM\OneToOne(inversedBy: 'location', cascade: ['persist', 'remove'])]
-    private ?Place $place = null;
+    #[ORM\ManyToOne]
+    private ?Player $player = null;
 
     public function __construct()
     {
         $this->holder = new ArrayCollection();
     }
 
-
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function getLocation(): ?string
+    public function getLocation(): ?LocationEnum
     {
         return $this->location;
     }
 
-    public function setLocation(string $location): static
+    public function setLocation(LocationEnum $location): static
     {
         $this->location = $location;
 
@@ -70,56 +63,26 @@ class Location
         return $this;
     }
 
-    public function getCard(): ?Card
+    public function getActionCard(): ?ActionCard
     {
-        return $this->card;
+        return $this->actionCard;
     }
 
-    public function setCard(?Card $card): static
+    public function setActionCard(?ActionCard $actionCard): static
     {
-        $this->card = $card;
+        $this->actionCard = $actionCard;
 
         return $this;
     }
 
-    /**
-     * @return Collection<int, Player>
-     */
-    public function getHolder(): Collection
+        public function getPlayer(): ?Player
     {
-        return $this->holder;
+        return $this->player;
     }
 
-    public function addHolder(Player $holder): static
+    public function setPlayer(?Player $player): static
     {
-        if (!$this->holder->contains($holder)) {
-            $this->holder->add($holder);
-            $holder->setLocation($this);
-        }
-
-        return $this;
-    }
-
-    public function removeHolder(Player $holder): static
-    {
-        if ($this->holder->removeElement($holder)) {
-            // set the owning side to null (unless already changed)
-            if ($holder->getLocation() === $this) {
-                $holder->setLocation(null);
-            }
-        }
-
-        return $this;
-    }
-
-    public function getPlace(): ?Place
-    {
-        return $this->place;
-    }
-
-    public function setPlace(?Place $place): static
-    {
-        $this->place = $place;
+        $this->player = $player;
 
         return $this;
     }

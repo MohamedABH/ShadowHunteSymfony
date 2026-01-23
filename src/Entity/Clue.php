@@ -26,7 +26,7 @@ class Clue
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
-    private ?Card $card = null;
+    private ?ActionCard $card = null;
 
     public function getId(): ?int
     {
@@ -69,12 +69,12 @@ class Clue
         return $this;
     }
 
-    public function getCard(): ?Card
+    public function getCard(): ?ActionCard
     {
         return $this->card;
     }
 
-    public function setCard(?Card $card): static
+    public function setCard(?ActionCard $card): static
     {
         $this->card = $card;
 

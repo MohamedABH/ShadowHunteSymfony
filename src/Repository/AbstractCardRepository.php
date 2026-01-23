@@ -2,22 +2,22 @@
 
 namespace App\Repository;
 
-use App\Entity\Card;
+use App\Entity\AbstractCard;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
- * @extends ServiceEntityRepository<Card>
+ * @extends ServiceEntityRepository<AbstractCard>
  */
-class CardRepository extends ServiceEntityRepository
+class AbstractCardRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {
-        parent::__construct($registry, Card::class);
+        parent::__construct($registry, AbstractCard::class);
     }
 
     //    /**
-    //     * @return Card[] Returns an array of Card objects
+    //     * @return AbstractCard[] Returns an array of AbstractCard objects
     //     */
     //    public function findByExampleField($value): array
     //    {
@@ -31,7 +31,7 @@ class CardRepository extends ServiceEntityRepository
     //        ;
     //    }
 
-    //    public function findOneBySomeField($value): ?Card
+    //    public function findOneBySomeField($value): ?AbstractCard
     //    {
     //        return $this->createQueryBuilder('c')
     //            ->andWhere('c.exampleField = :val')

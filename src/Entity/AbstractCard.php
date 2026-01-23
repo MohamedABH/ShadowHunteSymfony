@@ -2,11 +2,17 @@
 
 namespace App\Entity;
 
-use App\Repository\CardRepository;
 use Doctrine\ORM\Mapping as ORM;
 
-#[ORM\Entity(repositoryClass: CardRepository::class)]
-class Card
+#[ORM\Entity(repositoryClass: AbstractCardRepository::class)]
+#[ORM\InheritanceType('JOINED')]
+#[ORM\DiscriminatorColumn(name: 'object_type', type: 'string')]
+#[ORM\DiscriminatorMap([
+    'characterCard' => CharacterCard::class,
+    'actionCard' => ActionCard::class,
+    'placeCard' => PlaceCard::class,
+])]
+abstract class AbstractCard
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -18,9 +24,6 @@ class Card
 
     #[ORM\Column(length: 255)]
     private ?string $link = null;
-
-    #[ORM\Column(length: 255)]
-    private ?string $type = null;
 
     #[ORM\Column(length: 255)]
     private ?string $description = null;
@@ -53,18 +56,6 @@ class Card
     public function setLink(string $link): static
     {
         $this->link = $link;
-
-        return $this;
-    }
-
-    public function getType(): ?string
-    {
-        return $this->type;
-    }
-
-    public function setType(string $type): static
-    {
-        $this->type = $type;
 
         return $this;
     }

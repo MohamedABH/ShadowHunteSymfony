@@ -20,7 +20,7 @@ class Message
     private ?\DateTime $timestamp = null;
 
     #[ORM\ManyToOne]
-    private ?Card $card = null;
+    private ?AbstractCard $card = null;
 
     #[ORM\ManyToOne(inversedBy: 'messages')]
     #[ORM\JoinColumn(nullable: false)]
@@ -58,12 +58,12 @@ class Message
         return $this;
     }
 
-    public function getCard(): ?Card
+    public function getCard(): ?AbstractCard
     {
         return $this->card;
     }
 
-    public function setCard(?Card $card): static
+    public function setCard(?AbstractCard $card): static
     {
         $this->card = $card;
 

@@ -19,13 +19,13 @@ class Game
     private ?string $name = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $status = null;
+    private ?GameStatus $status = null;
 
     /**
-     * @var Collection<int, Location>
+     * @var Collection<int, Position>
      */
-    #[ORM\OneToMany(targetEntity: Location::class, mappedBy: 'game', orphanRemoval: true)]
-    private Collection $locations;
+    #[ORM\OneToMany(targetEntity: Position::class, mappedBy: 'game', orphanRemoval: true)]
+    private Collection $positions;
 
     /**
      * @var Collection<int, Message>
@@ -63,12 +63,12 @@ class Game
         return $this;
     }
 
-    public function getStatus(): ?string
+    public function getStatus(): ?GameStatus
     {
         return $this->status;
     }
 
-    public function setStatus(string $status): static
+    public function setStatus(GameStatus $status): static
     {
         $this->status = $status;
 
@@ -76,29 +76,29 @@ class Game
     }
 
     /**
-     * @return Collection<int, Location>
+     * @return Collection<int, Position>
      */
-    public function getLocations(): Collection
+    public function getPositions(): Collection
     {
-        return $this->locations;
+        return $this->positions;
     }
 
-    public function addLocation(Location $location): static
+    public function addPosition(Position $position): static
     {
-        if (!$this->locations->contains($location)) {
-            $this->locations->add($location);
-            $location->setGame($this);
+        if (!$this->positions->contains($position)) {
+            $this->positions->add($position);
+            $position->setGame($this);
         }
 
         return $this;
     }
 
-    public function removeLocation(Location $location): static
+    public function removePosition(Position $position): static
     {
-        if ($this->locations->removeElement($location)) {
+        if ($this->positions->removeElement($position)) {
             // set the owning side to null (unless already changed)
-            if ($location->getGame() === $this) {
-                $location->setGame(null);
+            if ($position->getGame() === $this) {
+                $position->setGame(null);
             }
         }
 

@@ -2,27 +2,31 @@
 
 namespace App\Entity;
 
-use App\Repository\PlaceRepository;
+use App\Repository\PositionRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
-#[ORM\Entity(repositoryClass: PlaceRepository::class)]
-class Place
+#[ORM\Entity(repositoryClass: PositionRepository::class)]
+class Position
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\OneToOne(mappedBy: 'place', cascade: ['persist', 'remove'])]
-    private ?Location $location = null;
-
     /**
      * @var Collection<int, Player>
      */
-    #[ORM\OneToMany(targetEntity: Player::class, mappedBy: 'place')]
+    #[ORM\OneToMany(targetEntity: Player::class, mappedBy: 'position')]
     private Collection $players;
+
+    #[ORM\ManyToOne(inversedBy: 'positions')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Game $game = null;
+
+    #[ORM\ManyToOne]
+    private ?PlaceCard $placeCard = null;
 
     public function __construct()
     {
@@ -32,28 +36,6 @@ class Place
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function getLocation(): ?Location
-    {
-        return $this->location;
-    }
-
-    public function setLocation(?Location $location): static
-    {
-        // unset the owning side of the relation if necessary
-        if ($location === null && $this->location !== null) {
-            $this->location->setPlace(null);
-        }
-
-        // set the owning side of the relation if necessary
-        if ($location !== null && $location->getPlace() !== $this) {
-            $location->setPlace($this);
-        }
-
-        $this->location = $location;
-
-        return $this;
     }
 
     /**
@@ -68,7 +50,7 @@ class Place
     {
         if (!$this->players->contains($player)) {
             $this->players->add($player);
-            $player->setPlace($this);
+            $player->setPosition($this);
         }
 
         return $this;
@@ -78,10 +60,34 @@ class Place
     {
         if ($this->players->removeElement($player)) {
             // set the owning side to null (unless already changed)
-            if ($player->getPlace() === $this) {
-                $player->setPlace(null);
+            if ($player->getPosition() === $this) {
+                $player->setPosition(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getGame(): ?Game
+    {
+        return $this->game;
+    }
+
+    public function setGame(?Game $game): static
+    {
+        $this->game = $game;
+
+        return $this;
+    }
+
+    public function getPlaceCard(): ?PlaceCard
+    {
+        return $this->placeCard;
+    }
+
+    public function setPlaceCard(?PlaceCard $placeCard): static
+    {
+        $this->placeCard = $placeCard;
 
         return $this;
     }
