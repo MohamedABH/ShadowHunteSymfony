@@ -7,6 +7,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use App\Enum\Colors;
 
 #[ORM\Entity(repositoryClass: PlayerRepository::class)]
 class Player
@@ -53,6 +54,12 @@ class Player
      */
     #[ORM\OneToMany(targetEntity: Location::class, mappedBy: 'player')]
     private Collection $cards;
+
+    #[ORM\Column]
+    private ?Colors $color = null;
+
+    #[ORM\Column(type: Types::SMALLINT, nullable: true)]
+    private ?int $playingOrder = null;
 
     public function __construct()
     {
@@ -223,6 +230,30 @@ class Player
                 $card->setPlayer(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getColor(): ?Colors
+    {
+        return $this->color;
+    }
+
+    public function setColor(Colors $color): static
+    {
+        $this->color = $color;
+
+        return $this;
+    }
+
+    public function getPlayingOrder(): ?int
+    {
+        return $this->playingOrder;
+    }
+
+    public function setPlayingOrder(?int $playingOrder): static
+    {
+        $this->playingOrder = $playingOrder;
 
         return $this;
     }
