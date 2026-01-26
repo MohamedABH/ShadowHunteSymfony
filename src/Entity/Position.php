@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\PositionRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: PositionRepository::class)]
@@ -27,6 +28,9 @@ class Position
 
     #[ORM\ManyToOne]
     private ?PlaceCard $placeCard = null;
+
+    #[ORM\Column(type: Types::SMALLINT)]
+    private ?int $number = null;
 
     public function __construct()
     {
@@ -88,6 +92,18 @@ class Position
     public function setPlaceCard(?PlaceCard $placeCard): static
     {
         $this->placeCard = $placeCard;
+
+        return $this;
+    }
+
+    public function getNumber(): ?int
+    {
+        return $this->number;
+    }
+
+    public function setNumber(int $number): static
+    {
+        $this->number = $number;
 
         return $this;
     }
