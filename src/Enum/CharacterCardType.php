@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Enum;
+
 enum CharacterCardType: string
 {
     case HUNTER = 'hunter';

@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Enum;
+
 enum Location: string
 {
     case HAND = 'hand';

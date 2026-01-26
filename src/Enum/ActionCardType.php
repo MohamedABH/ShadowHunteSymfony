@@ -1,8 +1,10 @@
 <?php
 
+namespace App\Enum;
+
 enum ActionCardType: string
 {
-    case BLACK = 'black';
-    case WHITE = 'white';
-    case GREEN = 'green';
+    case DARK = 'dark';
+    case LIGHT = 'light';
+    case SIGHT = 'sight';
 }
