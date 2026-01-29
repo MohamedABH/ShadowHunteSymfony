@@ -10,6 +10,10 @@ security:
             entity:
                 class: App\Entity\User
                 property: username
+        api_user_provider:
+            entity:
+                class: App\Entity\User
+                property: apiToken
 
     firewalls:
         dev:
@@ -19,6 +23,8 @@ security:
         main:
             lazy: true
             provider: app_user_provider
+            custom_authenticator: App\Security\APIAuthenticator
+            stateless: true
 
             # Activate different ways to authenticate:
             # https://symfony.com/doc/current/security.html#the-firewall
