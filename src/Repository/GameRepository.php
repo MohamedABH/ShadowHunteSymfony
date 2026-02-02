@@ -3,6 +3,10 @@
 namespace App\Repository;
 
 use App\Entity\Game;
+use App\Entity\Player;
+use App\Entity\User;
+use App\Enum\GameStatus;
+use App\Enum\Colors;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,6 +18,25 @@ class GameRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Game::class);
+    }
+
+    public function createGame(string $name, User $owner): Game
+    {
+        $game = new Game();
+        $game->setName($name);
+        $game->setStatus(GameStatus::PENDING);
+        $game->setTurn(0);
+
+        $player = new Player();
+        $player->setUser($owner);
+        $player->setCurrentDamage(0);
+        $player->setRevealed(false);
+        $player->setColor(Colors::WHITE);
+        $player->setPlayingOrder(1);
+
+        $game->addPlayer($player);
+
+        return $game;
     }
 
     //    /**

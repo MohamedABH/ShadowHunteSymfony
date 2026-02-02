@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Player;
+use App\Enum\GameStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,6 +15,18 @@ class PlayerRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Player::class);
+    }
+
+    public function findActivePlayerByUser($user): ?Player
+    {
+        return $this->createQueryBuilder('p')
+            ->innerJoin('p.game', 'g')
+            ->where('p.user = :user')
+            ->andWhere('g.status != :completed')
+            ->setParameter('user', $user)
+            ->setParameter('completed', GameStatus::COMPLETED)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     //    /**
