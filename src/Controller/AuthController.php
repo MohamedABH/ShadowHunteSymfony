@@ -2,6 +2,8 @@
 
 namespace App\Controller;
 
+use App\Entity\RefreshToken;
+use App\Repository\RefreshTokenRepository;
 use App\Repository\UserRepository;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,7 +19,13 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class AuthController extends AbstractController
 {
     #[Route('/login', name: 'login', methods: ['POST'])]
-    public function login(Request $request, UserRepository $userRepository, UserPasswordHasherInterface $passwordHasher, JWTTokenManagerInterface $jwtManager): JsonResponse
+    public function login(
+        Request $request,
+        UserRepository $userRepository,
+        UserPasswordHasherInterface $passwordHasher,
+        JWTTokenManagerInterface $jwtManager,
+        RefreshTokenRepository $refreshTokenRepository
+    ): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
@@ -46,9 +54,19 @@ final class AuthController extends AbstractController
 
         $token = $jwtManager->create($user);
 
+        // Revoke old refresh tokens and create new one
+        $refreshTokenRepository->revokeByUser($user);
+        
+        $refreshToken = new RefreshToken();
+        $refreshToken->setUser($user);
+        $refreshToken->setToken(bin2hex(random_bytes(32)));
+        $refreshToken->setExpiresAt(new \DateTimeImmutable('+30 days'));
+        $refreshTokenRepository->save($refreshToken, true);
+
         return $this->json([
             'message' => 'Login successful',
             'token' => $token,
+            'refresh_token' => $refreshToken->getToken(),
             'id' => $user->getId(),
             'username' => $user->getUsername(),
             'email' => $user->getEmail(),
