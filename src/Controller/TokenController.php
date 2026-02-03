@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Dto\RefreshTokenRequestDto;
 use App\Entity\RefreshToken;
 use App\Repository\RefreshTokenRepository;
 use App\Repository\UserRepository;
@@ -12,6 +13,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
 #[Route('/api/token')]
@@ -23,14 +26,23 @@ class TokenController extends AbstractController
     ) {}
 
     #[Route('/refresh', methods: ['POST'])]
-    public function refresh(Request $request, #[CurrentUser] ?User $user): JsonResponse
+    public function refresh(Request $request, #[CurrentUser] ?User $user, SerializerInterface $serializer, ValidatorInterface $validator): JsonResponse
     {
         if (!$user) {
             return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
+        $dto = $serializer->deserialize($request->getContent(), RefreshTokenRequestDto::class, 'json');
 
-        $data = json_decode($request->getContent(), true);
-        $refreshTokenString = $data['refresh_token'] ?? null;
+        $errors = $validator->validate($dto);
+        if (count($errors) > 0) {
+            $errorMessages = [];
+            foreach ($errors as $error) {
+                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+            }
+            return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
+        }
+
+        $refreshTokenString = $dto->refresh_token;
 
         if (!$refreshTokenString) {
             return $this->json(['error' => 'Missing refresh_token'], Response::HTTP_BAD_REQUEST);

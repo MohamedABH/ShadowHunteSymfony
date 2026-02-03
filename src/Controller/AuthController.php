@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Dto\LoginRequestDto;
 use App\Entity\RefreshToken;
 use App\Repository\RefreshTokenRepository;
 use App\Repository\UserRepository;
@@ -12,6 +13,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 
@@ -24,31 +27,35 @@ final class AuthController extends AbstractController
         UserRepository $userRepository,
         UserPasswordHasherInterface $passwordHasher,
         JWTTokenManagerInterface $jwtManager,
-        RefreshTokenRepository $refreshTokenRepository
+        RefreshTokenRepository $refreshTokenRepository,
+        SerializerInterface $serializer,
+        ValidatorInterface $validator
     ): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
+        $dto = $serializer->deserialize($request->getContent(), LoginRequestDto::class, 'json');
 
-        if ((!isset($data['username']) && !isset($data['email'])) || !isset($data['password'])) {
-            return $this->json(
-                ['error' => 'Provide username or email and password'],
-                Response::HTTP_BAD_REQUEST
-            );
+        $errors = $validator->validate($dto);
+        if (count($errors) > 0) {
+            $errorMessages = [];
+            foreach ($errors as $error) {
+                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+            }
+            return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
+        }
+
+        if (empty($dto->username) && empty($dto->email)) {
+            return $this->json(['error' => 'Provide username or email and password'], Response::HTTP_BAD_REQUEST);
         }
 
         $user = null;
-        if (isset($data['username'])) {
-            $user = $userRepository->findOneBy(['username' => $data['username']]);
+        if (!empty($dto->username)) {
+            $user = $userRepository->findOneBy(['username' => $dto->username]);
         }
-        if (!$user && isset($data['email'])) {
-            $user = $userRepository->findOneBy(['email' => $data['email']]);
-        }
-
-        if (!$user) {
-            return $this->json(['error' => 'Invalid credentials'], Response::HTTP_UNAUTHORIZED);
+        if (!$user && !empty($dto->email)) {
+            $user = $userRepository->findOneBy(['email' => $dto->email]);
         }
 
-        if (!$passwordHasher->isPasswordValid($user, $data['password'])) {
+        if (!$user || !$passwordHasher->isPasswordValid($user, $dto->password)) {
             return $this->json(['error' => 'Invalid credentials'], Response::HTTP_UNAUTHORIZED);
         }
 
