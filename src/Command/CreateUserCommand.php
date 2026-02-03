@@ -48,7 +48,7 @@ class CreateUserCommand extends Command
         $password = $input->getArgument('password');
         $roleOption = strtolower((string) $input->getOption('role'));
         if ($roleOption === 'admin') {
-            $role = Role::ADMIN;
+            $role = Role::ADMIN->value;
         } else {
             $io->error('Invalid role option. Allowed values: admin');
             return Command::FAILURE;
@@ -64,7 +64,7 @@ class CreateUserCommand extends Command
         $user->setEmail($email);
         $hashedPassword = $this->passwordHasher->hashPassword($user, $password);
         $user->setPassword($hashedPassword);
-        $roles = array_unique([$role, Role::USER]);
+        $roles = array_unique([$role, Role::USER->value]);
         $user->setRoles($roles);
         $this->entityManager->persist($user);
         $this->entityManager->flush();
