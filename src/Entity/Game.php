@@ -43,9 +43,13 @@ class Game
     #[ORM\Column]
     private ?int $turn = null;
 
+    #[ORM\ManyToOne(inversedBy: 'ownedGames')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?User $owner = null;
+
     public function __construct()
     {
-        $this->locations = new ArrayCollection();
+        $this->positions = new ArrayCollection();
         $this->messages = new ArrayCollection();
         $this->players = new ArrayCollection();
     }
@@ -177,6 +181,18 @@ class Game
     public function setTurn(int $turn): static
     {
         $this->turn = $turn;
+
+        return $this;
+    }
+
+    public function getOwner(): ?User
+    {
+        return $this->owner;
+    }
+
+    public function setOwner(?User $owner): static
+    {
+        $this->owner = $owner;
 
         return $this;
     }

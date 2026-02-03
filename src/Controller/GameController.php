@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Dto\GameCreateRequestDto;
 use App\Dto\GameJoinRequestDto;
+use App\Enum\GameStatus;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -58,6 +59,7 @@ final class GameController extends AbstractController
 
         $gameName = $dto->name ?? 'New Game';
         $game = $gameRepository->createGame($gameName, $user);
+        $game->setOwner($user);
 
         $entityManager->persist($game);
         // Persist any newly created players attached to the game
@@ -154,7 +156,30 @@ final class GameController extends AbstractController
 
         // delete player from game if game is not started, else inflic max damage to player to eliminate them
         $game = $activePlayer->getGame();
-        if ($game->getStatus() === 'waiting') {
+        
+        // Check if user is the game owner
+        $isOwner = $game->getOwner()->getId() === $user->getId();
+        
+        if ($isOwner) {
+            // Owner leaves: designate another player as the new owner
+            $remainingPlayers = $game->getPlayers()->filter(function($p) use ($activePlayer) {
+                return $p->getId() !== $activePlayer->getId();
+            });
+            
+            if ($remainingPlayers->count() > 0) {
+                // Promote the first remaining player to owner
+                $newOwner = $remainingPlayers->first()->getUser();
+                $game->setOwner($newOwner);
+                $entityManager->persist($game);
+            } else {
+                // Owner is the only player: end the game
+                $game->setStatus(GameStatus::ENDED);
+                $entityManager->persist($game);
+            }
+        }
+        
+        // Remove the leaving player
+        if ($game->getStatus()->value === 'waiting') {
             $entityManager->remove($activePlayer);
         } else {
             $activePlayer->setCurrentDamage(100); // assuming 100 is max damage
@@ -193,6 +218,10 @@ final class GameController extends AbstractController
                 'name' => $game->getName(),
                 'status' => $game->getStatus(),
                 'turn' => $game->getTurn(),
+                'owner' => [
+                    'id' => $game->getOwner()->getId(),
+                    'username' => $game->getOwner()->getUsername(),
+                ],
             ],
             'player' => [
                 'id' => $player->getId(),
@@ -200,6 +229,55 @@ final class GameController extends AbstractController
                 'currentDamage' => $player->getCurrentDamage(),
                 'revealed' => $player->isRevealed(),
             ],
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/start', name: 'app_game_start', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function start(
+        Request $request,
+        EntityManagerInterface $entityManager,
+        GameRepository $gameRepository,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $gameId = $data['gameId'] ?? null;
+
+        $game = $gameRepository->find($gameId);
+
+        if (!$game) {
+            return $this->json(
+                ['error' => 'Game not found'],
+                Response::HTTP_NOT_FOUND
+            );
+        }
+
+        // Check if user is the game owner
+        if ($game->getOwner()->getId() !== $user->getId()) {
+            return $this->json(
+                ['error' => 'Only the game owner can start the game'],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+        // Check game status is 'waiting' before starting
+        if ($game->getStatus()->value !== 'waiting') {
+            return $this->json(
+                ['error' => 'Game cannot be started. Current status: ' . $game->getStatus()->value],
+                Response::HTTP_CONFLICT
+            );
+        }
+
+        // Update game status to 'in_progress'
+        $game->setStatus(GameStatus::IN_PROGRESS);
+        $entityManager->persist($game);
+        $entityManager->flush();
+
+        return $this->json([
+            'message' => 'Game started successfully',
+            'gameId' => $game->getId(),
+            'status' => $game->getStatus()->value,
         ], Response::HTTP_OK);
     }
 }
