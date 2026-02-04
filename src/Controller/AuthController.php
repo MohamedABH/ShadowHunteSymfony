@@ -32,7 +32,12 @@ final class AuthController extends AbstractController
         ValidatorInterface $validator
     ): JsonResponse
     {
-        $dto = $serializer->deserialize($request->getContent(), LoginRequestDto::class, 'json');
+        try {
+            $dto = $serializer->deserialize($request->getContent(), LoginRequestDto::class, 'json');
+        } catch (\Symfony\Component\Serializer\Exception\NotEncodableValueException $e) {
+            error_log('Invalid JSON on /login: ' . $request->getContent());
+            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
 
         $errors = $validator->validate($dto);
         if (count($errors) > 0) {

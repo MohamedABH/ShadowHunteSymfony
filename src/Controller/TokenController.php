@@ -31,7 +31,12 @@ class TokenController extends AbstractController
         if (!$user) {
             return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
-        $dto = $serializer->deserialize($request->getContent(), RefreshTokenRequestDto::class, 'json');
+        try {
+            $dto = $serializer->deserialize($request->getContent(), RefreshTokenRequestDto::class, 'json');
+        } catch (\Symfony\Component\Serializer\Exception\NotEncodableValueException $e) {
+            error_log('Invalid JSON on /api/token/refresh: ' . $request->getContent());
+            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
 
         $errors = $validator->validate($dto);
         if (count($errors) > 0) {

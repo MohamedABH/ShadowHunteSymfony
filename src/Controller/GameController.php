@@ -15,6 +15,7 @@ use App\Repository\GameRepository;
 use App\Repository\PlayerRepository;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
@@ -46,7 +47,11 @@ final class GameController extends AbstractController
             );
         }
 
-        $dto = $serializer->deserialize($request->getContent(), GameCreateRequestDto::class, 'json');
+        try {
+            $dto = $serializer->deserialize($request->getContent(), GameCreateRequestDto::class, 'json');
+        } catch (NotEncodableValueException $e) {
+            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
 
         $errors = $validator->validate($dto);
         if (count($errors) > 0) {
@@ -100,7 +105,11 @@ final class GameController extends AbstractController
             );
         }
 
-        $dto = $serializer->deserialize($request->getContent(), GameJoinRequestDto::class, 'json');
+        try {
+            $dto = $serializer->deserialize($request->getContent(), GameJoinRequestDto::class, 'json');
+        } catch (NotEncodableValueException $e) {
+            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
 
         $errors = $validator->validate($dto);
         if (count($errors) > 0) {
@@ -280,4 +289,57 @@ final class GameController extends AbstractController
             'status' => $game->getStatus()->value,
         ], Response::HTTP_OK);
     }
+
+    #[Route('/admin/{gameId}/locations', name: 'app_game_locations_admin', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function getLocations(
+        int $gameId,
+        GameRepository $gameRepository,
+    ): JsonResponse
+    {
+        $game = $gameRepository->find($gameId);
+        if (!$game) {
+            return $this->json(
+                ['error' => 'Game not found'],
+                Response::HTTP_NOT_FOUND
+            );
+        }
+
+        // Get all locations for this game, organized by location type and sorted by position
+        $locations = $game->getLocations()->toArray();
+        
+        // Sort by location and then by position
+        usort($locations, function ($a, $b) {
+            if ($a->getLocation()->value === $b->getLocation()->value) {
+                return ($a->getPosition() ?? 0) <=> ($b->getPosition() ?? 0);
+            }
+            return $a->getLocation()->value <=> $b->getLocation()->value;
+        });
+
+        // Format the response
+        $formattedLocations = array_map(function ($location) {
+            return [
+                'id' => $location->getId(),
+                'actionCard' => [
+                    'id' => $location->getActionCard()->getId(),
+                    'name' => $location->getActionCard()->getName(),
+                    'type' => $location->getActionCard()->getType()?->value,
+                ],
+                'location' => $location->getLocation()->value,
+                'position' => $location->getPosition(),
+                'player' => $location->getPlayer() ? [
+                    'id' => $location->getPlayer()->getId(),
+                    'user' => $location->getPlayer()->getUser()->getUsername(),
+                ] : null,
+            ];
+        }, $locations);
+
+        return $this->json([
+            'gameId' => $game->getId(),
+            'totalLocations' => count($formattedLocations),
+            'locations' => $formattedLocations,
+        ], Response::HTTP_OK);
+    }
+
+    
 }

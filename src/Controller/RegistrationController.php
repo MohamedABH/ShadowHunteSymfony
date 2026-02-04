@@ -27,7 +27,12 @@ final class RegistrationController extends AbstractController
         EntityManagerInterface $entityManager,
         UserRepository $userRepository,
     ): JsonResponse {
-        $dto = $serializer->deserialize($request->getContent(), RegistrationRequestDto::class, 'json');
+        try {
+            $dto = $serializer->deserialize($request->getContent(), RegistrationRequestDto::class, 'json');
+        } catch (\Symfony\Component\Serializer\Exception\NotEncodableValueException $e) {
+            error_log('Invalid JSON on /register: ' . $request->getContent());
+            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
 
         $errors = $validator->validate($dto);
         if (count($errors) > 0) {
