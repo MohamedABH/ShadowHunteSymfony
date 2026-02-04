@@ -4,7 +4,7 @@ namespace App\Service;
 
 use App\Repository\GameRepository;
 use App\Repository\PlayerRepository;
-use App\Repository\AbstractCardRepository;
+use App\Repository\CharacterCardRepository;
 use App\Repository\LocationRepository;
 use App\Entity\Location;
 use App\Entity\ActionCard;
@@ -16,7 +16,7 @@ class GameService {
     public function __construct(
         private readonly GameRepository $gameRepository,
         private readonly PlayerRepository $playerRepository,
-        private readonly AbstractCardRepository $cardRepository,
+        private readonly CharacterCardRepository $characterRepository,
         private readonly LocationRepository $locationRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -60,11 +60,11 @@ class GameService {
         shuffle($players);
 
         // Get character cards grouped by type
-        $shadowCards = $this->cardRepository->findByType('shadow');
-        $hunterCards = $this->cardRepository->findByType('hunter');
-        $neutralCards = $this->cardRepository->findByType('neutral');
+        $shadowCards = $this->characterRepository->findByType('shadow');
+        $hunterCards = $this->characterRepository->findByType('hunter');
+        $neutralCards = $this->characterRepository->findByType('neutral');
 
-        // Assign character cards ensuring different initials
+        // Assign character cards ensuring different initials globally
         $assignedCards = [];
         $usedInitials = [];
 
@@ -93,7 +93,7 @@ class GameService {
                 $cards = $neutralCards;
             }
 
-            // Find a card with a unique initial
+            // Find a card with a unique initial (global)
             $selectedCard = null;
             foreach ($cards as $card) {
                 if (!in_array($card->getInitial(), $usedInitials)) {
@@ -111,8 +111,8 @@ class GameService {
             $this->entityManager->persist($player);
         }
 
-        initializeDeck($gameId);
-        reshuffleDeck($gameId);
+        $this->initializeDeck($gameId);
+        $this->reshuffleDeck($gameId);
 
         $game->setTurn(1);
         $this->entityManager->persist($game);

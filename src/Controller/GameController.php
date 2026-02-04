@@ -18,6 +18,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use App\Service\GameService;
 
 #[Route('api/game', name: 'app_game')]
 final class GameController extends AbstractController
@@ -247,6 +248,7 @@ final class GameController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         GameRepository $gameRepository,
+        GameService $gameService,
         #[CurrentUser] $user,
     ): JsonResponse
     {
@@ -270,8 +272,8 @@ final class GameController extends AbstractController
             );
         }
 
-        // Check game status is 'waiting' before starting
-        if ($game->getStatus()->value !== 'waiting') {
+        // Check game status is 'pending' before starting
+        if ($game->getStatus()->value !== 'pending') {
             return $this->json(
                 ['error' => 'Game cannot be started. Current status: ' . $game->getStatus()->value],
                 Response::HTTP_CONFLICT
@@ -279,9 +281,13 @@ final class GameController extends AbstractController
         }
 
         // Update game status to 'in_progress'
-        $game->setStatus(GameStatus::IN_PROGRESS);
+        $game->setStatus(GameStatus::ONGOING);
         $entityManager->persist($game);
         $entityManager->flush();
+
+        // Initialize game with character card assignment and deck creation
+        $playerIds = array_map(fn($player) => $player->getId(), $game->getPlayers()->toArray());
+        $gameService->initializeGame($game->getId(), $playerIds);
 
         return $this->json([
             'message' => 'Game started successfully',
