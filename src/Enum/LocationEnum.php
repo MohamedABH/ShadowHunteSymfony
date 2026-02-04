@@ -2,9 +2,8 @@
 
 namespace App\Enum;
 
-enum Location: string
+enum LocationEnum: string
 {
-    case HAND = 'hand';
     case SIGHT_DECK = 'sight_deck';
     case DARK_DECK = 'dark_deck';
     case LIGHT_DECK = 'light_deck';
