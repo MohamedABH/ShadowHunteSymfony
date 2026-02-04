@@ -65,7 +65,6 @@ final class GameController extends AbstractController
 
         $gameName = $dto->name ?? 'New Game';
         $game = $gameRepository->createGame($gameName, $user);
-        $game->setOwner($user);
 
         $entityManager->persist($game);
         // Persist any newly created players attached to the game
@@ -164,7 +163,7 @@ final class GameController extends AbstractController
             );
         }
 
-        // delete player from game if game is not started, else inflic max damage to player to eliminate them
+        // delete player from game if game is not started, else inflict max damage to player to eliminate them
         $game = $activePlayer->getGame();
         
         // Check if user is the game owner
@@ -182,18 +181,28 @@ final class GameController extends AbstractController
                 $game->setOwner($newOwner);
                 $entityManager->persist($game);
             } else {
-                // Owner is the only player: end the game
-                $game->setStatus(GameStatus::ENDED);
+                // Owner is the only player: abort the game
+                $game->setStatus(GameStatus::ABORTED);
                 $entityManager->persist($game);
             }
         }
         
         // Remove the leaving player
-        if ($game->getStatus()->value === 'waiting') {
+        if ($game->getStatus()->value === 'pending') {
             $entityManager->remove($activePlayer);
         } else {
             $activePlayer->setCurrentDamage(100); // assuming 100 is max damage
             $entityManager->persist($activePlayer);
+        }
+
+        // Check if game has no players left, if so abort the game
+        $remainingPlayersCount = $game->getPlayers()->filter(function($p) use ($activePlayer) {
+            return $p->getId() !== $activePlayer->getId();
+        })->count();
+        
+        if ($remainingPlayersCount === 0) {
+            $game->setStatus(GameStatus::ABORTED);
+            $entityManager->persist($game);
         }
 
         $entityManager->flush();

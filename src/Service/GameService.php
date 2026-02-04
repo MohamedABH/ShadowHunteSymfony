@@ -6,7 +6,9 @@ use App\Repository\GameRepository;
 use App\Repository\PlayerRepository;
 use App\Repository\CharacterCardRepository;
 use App\Repository\LocationRepository;
+use App\Repository\PositionRepository;
 use App\Entity\Location;
+use App\Entity\Position;
 use App\Entity\ActionCard;
 use App\Enum\LocationEnum;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,6 +20,7 @@ class GameService {
         private readonly PlayerRepository $playerRepository,
         private readonly CharacterCardRepository $characterRepository,
         private readonly LocationRepository $locationRepository,
+        private readonly PositionRepository $positionRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -112,6 +115,7 @@ class GameService {
         }
 
         $this->initializeDeck($gameId);
+        $this->createPositions($gameId);
         $this->reshuffleDeck($gameId);
 
         $game->setTurn(1);
@@ -204,6 +208,34 @@ class GameService {
                 $location->setPosition($index);
                 $this->entityManager->persist($location);
             }
+        }
+
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Create positions on the board for each PlaceCard
+     * Positions represent the locations where players can move
+     */
+    public function createPositions(int $gameId): void
+    {
+        $game = $this->gameRepository->find($gameId);
+        if (!$game) {
+            throw new \InvalidArgumentException("Game with ID $gameId not found.");
+        }
+
+        // Get all PlaceCards from the database
+        $placeCards = $this->entityManager->getRepository('App\\Entity\\PlaceCard')->findAll();
+
+        // Create a position for each PlaceCard
+        $positionNumber = 1;
+        foreach ($placeCards as $placeCard) {
+            $position = new Position();
+            $position->setGame($game);
+            $position->setPlaceCard($placeCard);
+            $position->setNumber($positionNumber);
+            $this->entityManager->persist($position);
+            $positionNumber++;
         }
 
         $this->entityManager->flush();

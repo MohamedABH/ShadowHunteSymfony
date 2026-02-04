@@ -32,7 +32,6 @@ class GameRepository extends ServiceEntityRepository
         $player->setCurrentDamage(0);
         $player->setRevealed(false);
         $player->setColor(Colors::WHITE);
-        $player->setPlayingOrder(1);
 
         $game->addPlayer($player);
 
