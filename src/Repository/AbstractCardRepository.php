@@ -16,28 +16,18 @@ class AbstractCardRepository extends ServiceEntityRepository
         parent::__construct($registry, AbstractCard::class);
     }
 
-    //    /**
-    //     * @return AbstractCard[] Returns an array of AbstractCard objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('c')
-    //            ->andWhere('c.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('c.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
-
-    //    public function findOneBySomeField($value): ?AbstractCard
-    //    {
-    //        return $this->createQueryBuilder('c')
-    //            ->andWhere('c.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+    /**
+     * Find all character cards by type
+     * @return AbstractCard[] Returns an array of AbstractCard objects
+     */
+    public function findByType(string $type): array
+    {
+        return $this->createQueryBuilder('c')
+            ->andWhere('c.type = :type')
+            ->setParameter('type', $type)
+            ->orderBy('c.name', 'ASC')
+            ->getQuery()
+            ->getResult()
+        ;
+    }
 }

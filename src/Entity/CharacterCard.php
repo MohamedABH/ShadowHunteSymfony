@@ -16,6 +16,9 @@ class CharacterCard extends AbstractCard
     #[ORM\Column(type: Types::SMALLINT)]
     private ?int $maxDamage = null;
 
+    #[ORM\Column(length: 1)]
+    private ?string $initial = null;
+
     public function getType(): ?CharacterCardType
     {
         return $this->type;
@@ -40,4 +43,15 @@ class CharacterCard extends AbstractCard
         return $this;
     }
 
+    public function getInitial(): ?string
+    {
+        return $this->initial;
+    }
+
+    public function setInitial(string $initial): static
+    {
+        $this->initial = $initial;
+
+        return $this;
+    }
 }

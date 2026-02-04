@@ -6,6 +6,7 @@ use App\Repository\LocationRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Doctrine\DBAL\Types\Types;
 
 #[ORM\Entity(repositoryClass: LocationRepository::class)]
 class Location
@@ -28,6 +29,9 @@ class Location
 
     #[ORM\ManyToOne]
     private ?Player $player = null;
+
+    #[ORM\Column(type: Types::SMALLINT, nullable: true)]
+    private ?int $position = null;
 
     public function __construct()
     {
@@ -83,6 +87,18 @@ class Location
     public function setPlayer(?Player $player): static
     {
         $this->player = $player;
+
+        return $this;
+    }
+
+    public function getPosition(): ?int
+    {
+        return $this->position;
+    }
+
+    public function setPosition(?int $position): static
+    {
+        $this->position = $position;
 
         return $this;
     }
