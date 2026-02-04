@@ -36,7 +36,7 @@ class CreateUserCommand extends Command
             ->addArgument('username', InputArgument::REQUIRED, 'The username of the new user')
             ->addArgument('email', InputArgument::REQUIRED, 'The email of the new user')
             ->addArgument('password', InputArgument::REQUIRED, 'The password of the new user')
-            ->addOption('role', null, InputOption::VALUE_OPTIONAL, 'Role of the new user (user|admin)', 'user')
+            ->addOption('admin', null, InputOption::VALUE_NONE, 'If set, the user will be an admin')
         ;
     }
 
@@ -46,13 +46,7 @@ class CreateUserCommand extends Command
         $username = $input->getArgument('username');
         $email = $input->getArgument('email');
         $password = $input->getArgument('password');
-        $roleOption = strtolower((string) $input->getOption('role'));
-        if ($roleOption === 'admin') {
-            $role = Role::ADMIN->value;
-        } else {
-            $io->error('Invalid role option. Allowed values: admin');
-            return Command::FAILURE;
-        }
+        
         // Check if user already exists
         if ($this->userRepository->findOneBy(['username' => $username]) || $this->userRepository->findOneBy(['email' => $email])) {
             $io->error('User with this username or email already exists.');
@@ -64,8 +58,14 @@ class CreateUserCommand extends Command
         $user->setEmail($email);
         $hashedPassword = $this->passwordHasher->hashPassword($user, $password);
         $user->setPassword($hashedPassword);
-        $roles = array_unique([$role, Role::USER->value]);
+        
+        // Set roles: always add USER role, add ADMIN role if --admin flag is present
+        $roles = [Role::USER->value];
+        if ($input->getOption('admin')) {
+            $roles[] = Role::ADMIN->value;
+        }
         $user->setRoles($roles);
+        
         $this->entityManager->persist($user);
         $this->entityManager->flush();
 
