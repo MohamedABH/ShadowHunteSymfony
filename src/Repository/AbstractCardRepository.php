@@ -15,19 +15,4 @@ class AbstractCardRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, AbstractCard::class);
     }
-
-    /**
-     * Find all character cards by type
-     * @return AbstractCard[] Returns an array of AbstractCard objects
-     */
-    public function findByType(string $type): array
-    {
-        return $this->createQueryBuilder('c')
-            ->andWhere('c.type = :type')
-            ->setParameter('type', $type)
-            ->orderBy('c.name', 'ASC')
-            ->getQuery()
-            ->getResult()
-        ;
-    }
 }

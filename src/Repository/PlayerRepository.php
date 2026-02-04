@@ -3,6 +3,9 @@
 namespace App\Repository;
 
 use App\Entity\Player;
+use App\Entity\User;
+use App\Entity\Game;
+use App\Enum\Colors;
 use App\Enum\GameStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -27,6 +30,43 @@ class PlayerRepository extends ServiceEntityRepository
             ->setParameter('completed', GameStatus::COMPLETED)
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+     * Create a new Player instance attached to a User and Game.
+     * Does not persist the entity; caller should persist/flush.
+     */
+    public function createPlayer(User $user, Game $game): Player
+    {
+        $player = new Player();
+        $player->setUser($user);
+        $player->setGame($game);
+        $player->setCurrentDamage(0);
+        $player->setRevealed(false);
+
+        // assign a color not already taken in the game
+        $used = [];
+        foreach ($game->getPlayers() as $p) {
+            if ($p->getColor() !== null) {
+                $used[] = $p->getColor()->value;
+            }
+        }
+
+        $assigned = null;
+        foreach (Colors::cases() as $colorCase) {
+            if (!in_array($colorCase->value, $used, true)) {
+                $assigned = $colorCase;
+                break;
+            }
+        }
+
+        if ($assigned === null) {
+            $assigned = Colors::WHITE;
+        }
+
+        $player->setColor($assigned);
+
+        return $player;
     }
 
     //    /**
