@@ -2,12 +2,12 @@
 
 namespace App\Entity;
 
-use App\Repository\CardRepository;
+use App\Repository\CharacterCardRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\DBAL\Types\Types;
 use App\Enum\CharacterCardType;
 
-#[ORM\Entity(repositoryClass: CardRepository::class)]
+#[ORM\Entity(repositoryClass: CharacterCardRepository::class)]
 class CharacterCard extends AbstractCard
 {
     #[ORM\Column(length: 255)]

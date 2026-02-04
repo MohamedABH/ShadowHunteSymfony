@@ -7,6 +7,7 @@ use App\Enum\GameStatus;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\Location;
 
 #[ORM\Entity(repositoryClass: GameRepository::class)]
 class Game
@@ -40,6 +41,12 @@ class Game
     #[ORM\OneToMany(targetEntity: Player::class, mappedBy: 'game', orphanRemoval: true)]
     private Collection $players;
 
+    /**
+     * @var Collection<int, Location>
+     */
+    #[ORM\OneToMany(targetEntity: Location::class, mappedBy: 'game', orphanRemoval: true)]
+    private Collection $locations;
+
     #[ORM\Column]
     private ?int $turn = null;
 
@@ -52,6 +59,7 @@ class Game
         $this->positions = new ArrayCollection();
         $this->messages = new ArrayCollection();
         $this->players = new ArrayCollection();
+        $this->locations = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -193,6 +201,36 @@ class Game
     public function setOwner(?User $owner): static
     {
         $this->owner = $owner;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Location>
+     */
+    public function getLocations(): Collection
+    {
+        return $this->locations;
+    }
+
+    public function addLocation(Location $location): static
+    {
+        if (!$this->locations->contains($location)) {
+            $this->locations->add($location);
+            $location->setGame($this);
+        }
+
+        return $this;
+    }
+
+    public function removeLocation(Location $location): static
+    {
+        if ($this->locations->removeElement($location)) {
+            // set the owning side to null (unless already changed)
+            if ($location->getGame() === $this) {
+                $location->setGame(null);
+            }
+        }
 
         return $this;
     }
