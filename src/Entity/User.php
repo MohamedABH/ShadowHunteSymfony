@@ -8,6 +8,7 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use App\Entity\Role;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_USERNAME', fields: ['username'])]
@@ -29,13 +30,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->friends = new ArrayCollection();
         $this->players = new ArrayCollection();
         $this->messages = new ArrayCollection();
+        $this->roles = new ArrayCollection();
     }
 
     /**
-     * @var list<Role> The user roles
+     * @var Collection<int, Role>
      */
-    #[ORM\Column]
-    private array $roles = [];
+    #[ORM\ManyToMany(targetEntity: Role::class)]
+    private Collection $roles;
 
     /**
      * @var string The hashed password
@@ -100,18 +102,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return (string) $this->username;
     }
 
-    /**
-     * @see UserInterface
-     */
-    public function getRoles(): array
-    {
-        $roles = $this->roles;
-        // guarantee every user at least has ROLE_USER
-        $roles[] = 'ROLE_USER';
-
-        return array_unique($roles);
-    }
-
     public function getGame(): ?Game
     {
         return $this->game;
@@ -125,11 +115,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * @param list<Role> $roles
+     * @see UserInterface
+     * @return list<int, Role>
      */
-    public function setRoles(array $roles): static
+    public function getRoles(): array
     {
-        $this->roles = $roles;
+        return array_map(
+            fn (Role $role) => $role->getLibelle(),
+            $this->roles->toArray()
+        );
+    }
+
+    public function addRole(Role $role): static
+    {
+        if (!$this->roles->contains($role)) {
+            $this->roles->add($role);
+        }
 
         return $this;
     }

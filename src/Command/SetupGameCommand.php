@@ -9,14 +9,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use App\Entity\User;
 use App\Entity\Game;
+use App\Entity\Role;
 use App\Repository\UserRepository;
 use App\Repository\PlayerRepository;
 use App\Repository\GameRepository;
-use App\Enum\Role;
 use App\Enum\GameStatus;
 use App\Service\GameService;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Enum\Colors;
 
 #[AsCommand(
     name: 'app:setup-game',
@@ -84,12 +85,10 @@ class SetupGameCommand extends Command
                 $user->setPassword($hashedPassword);
 
                 // Set roles
-                $roles = [Role::USER->value];
+                $user->addRole($this->entityManager->getRepository(Role::class)->findOneBy(['libelle' => 'ROLE_USER']));
                 if ($userData['isAdmin']) {
-                    $roles[] = Role::ADMIN->value;
+                    $user->addRole($this->entityManager->getRepository(Role::class)->findOneBy(['libelle' => 'ROLE_ADMIN']));
                 }
-                $user->setRoles($roles);
-
                 $this->entityManager->persist($user);
                 $createdUsers[] = $user;
                 $io->text("Created new user: {$userData['username']}" . ($userData['isAdmin'] ? ' (ADMIN)' : ''));
@@ -114,13 +113,23 @@ class SetupGameCommand extends Command
         $io->section('Step 3: Adding players to game...');
         $players = [];
         for ($i = 0; $i < count($createdUsers); $i++) {
+            $players = $game->getPlayers();
+            $allColors = array_map(fn($c) => $c->value, Colors::cases());
+            $availableColors = array_diff(
+                $allColors,
+                array_map(
+                    fn($p) => $p->getColor()->value,
+                    $players->toArray()
+                )
+            );
+            $io->text("Currently available colors: " . implode(", ", $availableColors));
             $player = $this->playerRepository->createPlayer($createdUsers[$i], $game);
             $player->setPlayingOrder($i);
             $this->entityManager->persist($player);
             $players[] = $player;
-            $io->text("Added player: {$createdUsers[$i]->getUsername()} (order: {$i})");
+            $io->text("Added player: {$createdUsers[$i]->getUsername()} (order: {$i}, color: {$player->getColor()->value})");
+            $this->entityManager->flush();
         }
-        $this->entityManager->flush();
         
         // Collect IDs after flush to ensure they're generated
         $playerIds = [];

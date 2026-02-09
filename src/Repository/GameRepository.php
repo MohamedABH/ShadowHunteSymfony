@@ -26,14 +26,7 @@ class GameRepository extends ServiceEntityRepository
         $game->setName($name);
         $game->setStatus(GameStatus::PENDING);
         $game->setTurn(0);
-
-        $player = new Player();
-        $player->setUser($owner);
-        $player->setCurrentDamage(0);
-        $player->setRevealed(false);
-        $player->setColor(Colors::WHITE);
-
-        $game->addPlayer($player);
+        $game->setOwner($owner);
 
         return $game;
     }

@@ -12,6 +12,13 @@ class AppFixtures extends Fixture
         // $product = new Product();
         // $manager->persist($product);
 
+        $roles = ['ROLE_USER', 'ROLE_ADMIN'];
+        foreach ($roles as $role) {
+            $roleEntity = new \App\Entity\Role();
+            $roleEntity->setLibelle($role);
+            $manager->persist($roleEntity);
+        }
+
         $manager->flush();
     }
 }

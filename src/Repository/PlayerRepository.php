@@ -9,6 +9,7 @@ use App\Enum\Colors;
 use App\Enum\GameStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
  * @extends ServiceEntityRepository<Player>
@@ -38,6 +39,7 @@ class PlayerRepository extends ServiceEntityRepository
      */
     public function createPlayer(User $user, Game $game): Player
     {
+
         $player = new Player();
         $player->setUser($user);
         $player->setGame($game);
@@ -46,15 +48,15 @@ class PlayerRepository extends ServiceEntityRepository
 
         // assign a color not already taken in the game
         $used = [];
-        foreach ($game->getPlayers() as $p) {
-            if ($p->getColor() !== null) {
-                $used[] = $p->getColor()->value;
+        foreach ($game->getPlayers() as $existingPlayer) {
+            if ($existingPlayer->getColor()) {
+                $used[] = $existingPlayer->getColor()->value;
             }
         }
 
         $assigned = null;
         foreach (Colors::cases() as $colorCase) {
-            if (!in_array($colorCase->value, $used, true)) {
+            if (!in_array($colorCase->value, $used)) {
                 $assigned = $colorCase;
                 break;
             }

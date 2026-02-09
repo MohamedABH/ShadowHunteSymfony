@@ -11,9 +11,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use App\Entity\User;
 use App\Repository\UserRepository;
-use App\Enum\Role;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Repository\RoleRepository;
 
 #[AsCommand(
     name: 'app:create-user',
@@ -25,6 +25,7 @@ class CreateUserCommand extends Command
         private readonly UserRepository $userRepository,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
+        private readonly RoleRepository $roleRepository,
     )
     {
         parent::__construct();
@@ -60,11 +61,15 @@ class CreateUserCommand extends Command
         $user->setPassword($hashedPassword);
         
         // Set roles: always add USER role, add ADMIN role if --admin flag is present
-        $roles = [Role::USER->value];
-        if ($input->getOption('admin')) {
-            $roles[] = Role::ADMIN->value;
+        $roles = $this->roleRepository->findBy(['libelle' => ['ROLE_USER', 'ROLE_ADMIN']]);
+        foreach ($roles as $role) {
+            if ($role->getLibelle() === 'ROLE_USER') {
+                $user->addRole($role);
+            }
+            if ($input->getOption('admin') && $role->getLibelle() === 'ROLE_ADMIN') {
+                $user->addRole($role);
+            }
         }
-        $user->setRoles($roles);
         
         $this->entityManager->persist($user);
         $this->entityManager->flush();
