@@ -48,6 +48,26 @@ class SetupGameCommand extends Command
             ['username' => 'player3_test', 'email' => 'player3@test.com', 'password' => 'player123', 'isAdmin' => false],
         ];
 
+        // Step 0: Ensure roles exist in database
+        $io->section('Step 0: Ensuring roles exist...');
+        $roleRepository = $this->entityManager->getRepository(Role::class);
+        $roleUser = $roleRepository->findOneBy(['libelle' => 'ROLE_USER']);
+        if (!$roleUser) {
+            $roleUser = new Role();
+            $roleUser->setLibelle('ROLE_USER');
+            $this->entityManager->persist($roleUser);
+            $io->text('Created ROLE_USER');
+        }
+        $roleAdmin = $roleRepository->findOneBy(['libelle' => 'ROLE_ADMIN']);
+        if (!$roleAdmin) {
+            $roleAdmin = new Role();
+            $roleAdmin->setLibelle('ROLE_ADMIN');
+            $this->entityManager->persist($roleAdmin);
+            $io->text('Created ROLE_ADMIN');
+        }
+        $this->entityManager->flush();
+        $io->success('Roles ready');
+
         // Step 1: Remove test users from active games (keep users, just remove them from games)
         $io->section('Step 1: Cleaning up test users from active games...');
         $createdUsers = [];
@@ -74,6 +94,17 @@ class SetupGameCommand extends Command
                         }
                     }
                 }
+                
+                // Ensure existing user has the correct roles
+                if (!$existingUser->getRoles() || !in_array('ROLE_USER', $existingUser->getRoles())) {
+                    $existingUser->addRole($roleUser);
+                    $this->entityManager->persist($existingUser);
+                }
+                if ($userData['isAdmin'] && !in_array('ROLE_ADMIN', $existingUser->getRoles())) {
+                    $existingUser->addRole($roleAdmin);
+                    $this->entityManager->persist($existingUser);
+                }
+                
                 $io->text("Reusing existing user: {$userData['username']}");
                 $createdUsers[] = $existingUser;
             } else {
@@ -85,9 +116,9 @@ class SetupGameCommand extends Command
                 $user->setPassword($hashedPassword);
 
                 // Set roles
-                $user->addRole($this->entityManager->getRepository(Role::class)->findOneBy(['libelle' => 'ROLE_USER']));
+                $user->addRole($roleUser);
                 if ($userData['isAdmin']) {
-                    $user->addRole($this->entityManager->getRepository(Role::class)->findOneBy(['libelle' => 'ROLE_ADMIN']));
+                    $user->addRole($roleAdmin);
                 }
                 $this->entityManager->persist($user);
                 $createdUsers[] = $user;
