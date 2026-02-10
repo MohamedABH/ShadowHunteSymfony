@@ -12,6 +12,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -26,28 +27,14 @@ class TokenController extends AbstractController
     ) {}
 
     #[Route('/refresh', methods: ['POST'])]
-    public function refresh(Request $request, #[CurrentUser] ?User $user, SerializerInterface $serializer, ValidatorInterface $validator): JsonResponse
+    public function refresh(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
         if (!$user) {
             return $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
-        try {
-            $dto = $serializer->deserialize($request->getContent(), RefreshTokenRequestDto::class, 'json');
-        } catch (\Symfony\Component\Serializer\Exception\NotEncodableValueException $e) {
-            error_log('Invalid JSON on /api/token/refresh: ' . $request->getContent());
-            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        }
 
-        $errors = $validator->validate($dto);
-        if (count($errors) > 0) {
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
-            }
-            return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
-        }
-
-        $refreshTokenString = $dto->refresh_token;
+        // Read refresh token from cookie
+        $refreshTokenString = $request->cookies->get('refresh_token');
 
         if (!$refreshTokenString) {
             return $this->json(['error' => 'Missing refresh_token'], Response::HTTP_BAD_REQUEST);
@@ -71,9 +58,32 @@ class TokenController extends AbstractController
         $newRefreshToken->setExpiresAt(new \DateTimeImmutable('+30 days'));
         $this->refreshTokenRepository->save($newRefreshToken, true);
 
-        return $this->json([
-            'token' => $newAccessToken,
-            'refresh_token' => $newRefreshToken->getToken(),
+        $response = $this->json([
+            'message' => 'Token refreshed successfully',
         ]);
+
+        // Set new JWT token in HTTP-only cookie
+        $response->headers->setCookie(
+            Cookie::create('jwt_token')
+                ->withValue($newAccessToken)
+                ->withExpires(new \DateTimeImmutable('+1 hour'))
+                ->withPath('/')
+                ->withSecure(false) // Set to true in production with HTTPS
+                ->withHttpOnly(true)
+                ->withSameSite(Cookie::SAMESITE_LAX)
+        );
+
+        // Set new refresh token in HTTP-only cookie
+        $response->headers->setCookie(
+            Cookie::create('refresh_token')
+                ->withValue($newRefreshToken->getToken())
+                ->withExpires(new \DateTimeImmutable('+30 days'))
+                ->withPath('/')
+                ->withSecure(false) // Set to true in production with HTTPS
+                ->withHttpOnly(true)
+                ->withSameSite(Cookie::SAMESITE_LAX)
+        );
+
+        return $response;
     }
 }

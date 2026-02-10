@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Entity\Role;
 use App\Repository\UserRepository;
 use App\Dto\RegistrationRequestDto;
 use Doctrine\ORM\EntityManagerInterface;
@@ -60,6 +61,14 @@ final class RegistrationController extends AbstractController
         $user->setEmail($dto->email);
         $user->setUsername($dto->username);
         $user->setPassword($passwordHasher->hashPassword($user, $dto->password));
+
+        // Assign ROLE_USER to new user (created by fixtures)
+        $roleRepository = $entityManager->getRepository(Role::class);
+        $roleUser = $roleRepository->findOneBy(['libelle' => 'ROLE_USER']);
+        
+        if ($roleUser) {
+            $user->addRole($roleUser);
+        }
 
         // Validate entity
         $errors = $validator->validate($user);

@@ -20,12 +20,23 @@ class APIAuthenticator extends AbstractAuthenticator
 
     public function supports(Request $request): ?bool
     {
-        return $request->headers->has('Authorization') && str_starts_with($request->headers->get('Authorization'), 'Bearer ');
+        return $request->headers->has('Authorization') 
+            || $request->cookies->has('jwt_token');
     }
 
     public function authenticate(Request $request): SelfValidatingPassport
     {
-        $token = substr($request->headers->get('Authorization'), 7);
+        // Try to get token from Authorization header first, then from cookie
+        $token = null;
+        if ($request->headers->has('Authorization') && str_starts_with($request->headers->get('Authorization'), 'Bearer ')) {
+            $token = substr($request->headers->get('Authorization'), 7);
+        } elseif ($request->cookies->has('jwt_token')) {
+            $token = $request->cookies->get('jwt_token');
+        }
+        
+        if (!$token) {
+            throw new AuthenticationException('No token provided');
+        }
         
         try {
             $payload = $this->jwtManager->parse($token);

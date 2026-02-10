@@ -11,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -75,14 +76,36 @@ final class AuthController extends AbstractController
         $refreshToken->setExpiresAt(new \DateTimeImmutable('+30 days'));
         $refreshTokenRepository->save($refreshToken, true);
 
-        return $this->json([
+        $response = $this->json([
             'message' => 'Login successful',
-            'token' => $token,
-            'refresh_token' => $refreshToken->getToken(),
             'id' => $user->getId(),
             'username' => $user->getUsername(),
             'email' => $user->getEmail(),
         ], Response::HTTP_OK);
+
+        // Set JWT token in HTTP-only cookie (expires in 1 hour by default)
+        $response->headers->setCookie(
+            Cookie::create('jwt_token')
+                ->withValue($token)
+                ->withExpires(new \DateTimeImmutable('+1 hour'))
+                ->withPath('/')
+                ->withSecure(false) // Set to true in production with HTTPS
+                ->withHttpOnly(true)
+                ->withSameSite(Cookie::SAMESITE_LAX)
+        );
+
+        // Set refresh token in HTTP-only cookie
+        $response->headers->setCookie(
+            Cookie::create('refresh_token')
+                ->withValue($refreshToken->getToken())
+                ->withExpires(new \DateTimeImmutable('+30 days'))
+                ->withPath('/')
+                ->withSecure(false) // Set to true in production with HTTPS
+                ->withHttpOnly(true)
+                ->withSameSite(Cookie::SAMESITE_LAX)
+        );
+
+        return $response;
     }
 
     #[Route('/auth-check/public', name: 'auth_check_public', methods: ['GET'])]
@@ -114,5 +137,33 @@ final class AuthController extends AbstractController
             'username' => $user->getUsername(),
             'email' => $user->getEmail(),
         ], Response::HTTP_OK);
+    }
+
+    #[Route('/logout', name: 'logout', methods: ['POST'])]
+    public function logout(): JsonResponse
+    {
+        $response = $this->json([
+            'message' => 'Logged out successfully',
+        ], Response::HTTP_OK);
+
+        // Clear JWT token cookie
+        $response->headers->setCookie(
+            Cookie::create('jwt_token')
+                ->withValue('')
+                ->withExpires(new \DateTimeImmutable('-1 hour'))
+                ->withPath('/')
+                ->withHttpOnly(true)
+        );
+
+        // Clear refresh token cookie
+        $response->headers->setCookie(
+            Cookie::create('refresh_token')
+                ->withValue('')
+                ->withExpires(new \DateTimeImmutable('-1 hour'))
+                ->withPath('/')
+                ->withHttpOnly(true)
+        );
+
+        return $response;
     }
 }
