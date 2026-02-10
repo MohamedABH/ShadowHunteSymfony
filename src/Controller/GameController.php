@@ -356,5 +356,122 @@ final class GameController extends AbstractController
         ], Response::HTTP_OK);
     }
 
+    #[Route('/state', name: 'app_game_state', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getGameState(
+        #[CurrentUser] $user,
+        PlayerRepository $playerRepository
+    ): JsonResponse
+    {
+        // Get the current player for this user
+        $currentPlayer = $playerRepository->findActivePlayerByUser($user);
+
+        if (!$currentPlayer) {
+            return $this->json(
+                ['error' => 'User is not part of an active game'],
+                Response::HTTP_NOT_FOUND
+            );
+        }
+
+        $game = $currentPlayer->getGame();
+
+        // Get all positions for this game
+        $positions = $game->getPositions()->toArray();
+        
+        // Sort positions by number
+        usort($positions, function ($a, $b) {
+            return $a->getNumber() <=> $b->getNumber();
+        });
+
+        // Format positions with placeCards
+        $formattedPositions = array_map(function ($position) {
+            $placeCard = $position->getPlaceCard();
+            return [
+                'id' => $position->getId(),
+                'number' => $position->getNumber(),
+                'placeCard' => $placeCard ? [
+                    'id' => $placeCard->getId(),
+                    'name' => $placeCard->getName(),
+                    'description' => $placeCard->getDescription(),
+                    'abilityMessage' => $placeCard->getAbilityMessage(),
+                    'link' => $placeCard->getLink(),
+                    'roll' => $placeCard->getRoll(),
+                ] : null,
+            ];
+        }, $positions);
+
+        // Get all players for this game
+        $players = $game->getPlayers()->toArray();
+        
+        // Sort players by playing order
+        usort($players, function ($a, $b) {
+            return ($a->getPlayingOrder() ?? 999) <=> ($b->getPlayingOrder() ?? 999);
+        });
+
+        // Calculate whose turn it is based on turn count and number of players
+        $turnCount = $game->getTurn();
+        $playerCount = count($players);
+        $currentPlayerIndex = $playerCount > 0 ? ($turnCount - 1) % $playerCount : null;
+        $currentPlayerId = $currentPlayerIndex !== null && isset($players[$currentPlayerIndex]) 
+            ? $players[$currentPlayerIndex]->getId() 
+            : null;
+
+        // Format players with their data
+        $formattedPlayers = array_map(function ($player) {
+            $characterCard = null;
+            if ($player->isRevealed() && $player->getCharacterCard()) {
+                $card = $player->getCharacterCard();
+                $characterCard = [
+                    'id' => $card->getId(),
+                    'name' => $card->getName(),
+                    'description' => $card->getDescription(),
+                    'abilityMessage' => $card->getAbilityMessage(),
+                    'link' => $card->getLink(),
+                    'type' => $card->getType()?->value,
+                    'maxDamage' => $card->getMaxDamage(),
+                    'initial' => $card->getInitial(),
+                ];
+            }
+
+            // Get equipment (action cards) held by the player
+            $equipments = array_map(function ($location) {
+                $actionCard = $location->getActionCard();
+                return [
+                    'id' => $actionCard->getId(),
+                    'name' => $actionCard->getName(),
+                    'description' => $actionCard->getDescription(),
+                    'abilityMessage' => $actionCard->getAbilityMessage(),
+                    'link' => $actionCard->getLink(),
+                    'type' => $actionCard->getType()?->value,
+                    'count' => $actionCard->getCount(),
+                ];
+            }, $player->getCardss()->toArray());
+
+            $position = $player->getPosition();
+            return [
+                'id' => $player->getId(),
+                'username' => $player->getUser()->getUsername(),
+                'color' => $player->getColor()->value,
+                'revealed' => $player->isRevealed(),
+                'characterCard' => $characterCard,
+                'position' => $position ? [
+                    'id' => $position->getId(),
+                    'number' => $position->getNumber(),
+                ] : null,
+                'currentDamage' => $player->getCurrentDamage(),
+                'playingOrder' => $player->getPlayingOrder(),
+                'equipments' => $equipments,
+            ];
+        }, $players);
+
+        return $this->json([
+            'gameId' => $game->getId(),
+            'turn' => $turnCount,
+            'currentPlayerId' => $currentPlayerId,
+            'positions' => $formattedPositions,
+            'players' => $formattedPlayers,
+        ], Response::HTTP_OK);
+    }
+
     
 }
