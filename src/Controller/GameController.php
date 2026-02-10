@@ -74,6 +74,11 @@ final class GameController extends AbstractController
 
         $entityManager->flush();
 
+        // Automatically add the creator as a player
+        $player = $playerRepository->createPlayer($user, $game);
+        $entityManager->persist($player);
+        $entityManager->flush();
+
         return $this->json([
             'message' => 'Game created successfully',
             'gameId' => $game->getId(),
