@@ -80,16 +80,14 @@ final class GameController extends AbstractController
         ], Response::HTTP_CREATED);
     }
 
-    #[Route('/join', name: 'app_game_join', methods: ['POST'])]
+    #[Route('/{gameId}/join', name: 'app_game_join', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function join(
-        Request $request,
+        int $gameId,
         EntityManagerInterface $entityManager,
         GameRepository $gameRepository,
         PlayerRepository $playerRepository,
         #[CurrentUser] $user,
-        SerializerInterface $serializer,
-        ValidatorInterface $validator,
     ): JsonResponse
     {
         // Check if user is already part of a non-completed game
@@ -105,22 +103,6 @@ final class GameController extends AbstractController
             );
         }
 
-        try {
-            $dto = $serializer->deserialize($request->getContent(), GameJoinRequestDto::class, 'json');
-        } catch (NotEncodableValueException $e) {
-            return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        }
-
-        $errors = $validator->validate($dto);
-        if (count($errors) > 0) {
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
-            }
-            return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
-        }
-
-        $gameId = $dto->gameId ?? null;
         $game = $gameRepository->find($gameId);
 
         if (!$game) {
@@ -213,57 +195,16 @@ final class GameController extends AbstractController
         ], Response::HTTP_CREATED);
     }
 
-    #[Route('/current', name: 'app_game_current', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function getCurrentGame(
-        #[CurrentUser] $user,
-        PlayerRepository $playerRepository
-    ): JsonResponse
-    {
-        $player = $playerRepository->findOneBy(['user' => $user]);
-
-        if (!$player) {
-            return $this->json(
-                ['currentGame' => null, 'message' => 'User is not part of any game'],
-                Response::HTTP_OK
-            );
-        }
-
-        $game = $player->getGame();
-
-        return $this->json([
-            'currentGame' => [
-                'id' => $game->getId(),
-                'name' => $game->getName(),
-                'status' => $game->getStatus(),
-                'turn' => $game->getTurn(),
-                'owner' => [
-                    'id' => $game->getOwner()->getId(),
-                    'username' => $game->getOwner()->getUsername(),
-                ],
-            ],
-            'player' => [
-                'id' => $player->getId(),
-                'color' => $player->getColor(),
-                'currentDamage' => $player->getCurrentDamage(),
-                'revealed' => $player->isRevealed(),
-            ],
-        ], Response::HTTP_OK);
-    }
-
-    #[Route('/start', name: 'app_game_start', methods: ['POST'])]
+    #[Route('/{gameId}/start', name: 'app_game_start', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function start(
-        Request $request,
+        int $gameId,
         EntityManagerInterface $entityManager,
         GameRepository $gameRepository,
         GameService $gameService,
         #[CurrentUser] $user,
     ): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
-        $gameId = $data['gameId'] ?? null;
-
         $game = $gameRepository->find($gameId);
 
         if (!$game) {
@@ -302,57 +243,6 @@ final class GameController extends AbstractController
             'message' => 'Game started successfully',
             'gameId' => $game->getId(),
             'status' => $game->getStatus()->value,
-        ], Response::HTTP_OK);
-    }
-
-    #[Route('/admin/{gameId}/locations', name: 'app_game_locations_admin', methods: ['GET'])]
-    #[IsGranted('ROLE_ADMIN')]
-    public function getLocations(
-        int $gameId,
-        GameRepository $gameRepository,
-    ): JsonResponse
-    {
-        $game = $gameRepository->find($gameId);
-        if (!$game) {
-            return $this->json(
-                ['error' => 'Game not found'],
-                Response::HTTP_NOT_FOUND
-            );
-        }
-
-        // Get all locations for this game, organized by location type and sorted by position
-        $locations = $game->getLocations()->toArray();
-        
-        // Sort by location and then by position
-        usort($locations, function ($a, $b) {
-            if ($a->getLocation()->value === $b->getLocation()->value) {
-                return ($a->getPosition() ?? 0) <=> ($b->getPosition() ?? 0);
-            }
-            return $a->getLocation()->value <=> $b->getLocation()->value;
-        });
-
-        // Format the response
-        $formattedLocations = array_map(function ($location) {
-            return [
-                'id' => $location->getId(),
-                'actionCard' => [
-                    'id' => $location->getActionCard()->getId(),
-                    'name' => $location->getActionCard()->getName(),
-                    'type' => $location->getActionCard()->getType()?->value,
-                ],
-                'location' => $location->getLocation()->value,
-                'position' => $location->getPosition(),
-                'player' => $location->getPlayer() ? [
-                    'id' => $location->getPlayer()->getId(),
-                    'user' => $location->getPlayer()->getUser()->getUsername(),
-                ] : null,
-            ];
-        }, $locations);
-
-        return $this->json([
-            'gameId' => $game->getId(),
-            'totalLocations' => count($formattedLocations),
-            'locations' => $formattedLocations,
         ], Response::HTTP_OK);
     }
 
@@ -470,6 +360,28 @@ final class GameController extends AbstractController
             'currentPlayerId' => $currentPlayerId,
             'positions' => $formattedPositions,
             'players' => $formattedPlayers,
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/list', name: 'app_game_list', methods: ['GET'])]
+    public function listGames(
+        GameRepository $gameRepository
+    ): JsonResponse
+    {
+        $games = $gameRepository->findAll();
+
+        $formattedGames = array_map(function ($game) {
+            return [
+                'id' => $game->getId(),
+                'name' => $game->getName(),
+                'status' => $game->getStatus()->value,
+                'playerCount' => $game->getPlayers()->count(),
+            ];
+        }, $games);
+
+        return $this->json([
+            'games' => $formattedGames,
+            'total' => count($formattedGames),
         ], Response::HTTP_OK);
     }
 
