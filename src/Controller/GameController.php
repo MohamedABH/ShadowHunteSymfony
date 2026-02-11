@@ -361,6 +361,7 @@ final class GameController extends AbstractController
 
         return $this->json([
             'gameId' => $game->getId(),
+            'gameStatus' => $game->getStatus()->value,
             'turn' => $turnCount,
             'currentPlayerId' => $currentPlayerId,
             'positions' => $formattedPositions,
