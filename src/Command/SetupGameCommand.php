@@ -42,10 +42,10 @@ class SetupGameCommand extends Command
 
         // Define test user credentials
         $users = [
-            ['username' => 'admin_test', 'email' => 'admin@test.com', 'password' => 'admin123', 'isAdmin' => true],
-            ['username' => 'player1_test', 'email' => 'player1@test.com', 'password' => 'player123', 'isAdmin' => false],
-            ['username' => 'player2_test', 'email' => 'player2@test.com', 'password' => 'player123', 'isAdmin' => false],
-            ['username' => 'player3_test', 'email' => 'player3@test.com', 'password' => 'player123', 'isAdmin' => false],
+            ['username' => 'admin_setup_test', 'email' => 'adminsetup@test.com', 'password' => 'admin123', 'isAdmin' => true],
+            ['username' => 'player1_setup_test', 'email' => 'player1setup@test.com', 'password' => 'player123', 'isAdmin' => false],
+            ['username' => 'player2_setup_test', 'email' => 'player2setup@test.com', 'password' => 'player123', 'isAdmin' => false],
+            ['username' => 'player3_setup_test', 'email' => 'player3setup@test.com', 'password' => 'player123', 'isAdmin' => false],
         ];
 
         // Get roles from database (created by fixtures)
