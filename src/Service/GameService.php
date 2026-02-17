@@ -155,6 +155,58 @@ class GameService {
         $this->initializeGame($game->getId(), $playerIds);
     }
 
+    public function getCurrentPlayer(Game $game): ?Player
+    {
+        $players = $game->getPlayers()->toArray();
+        if (count($players) === 0) {
+            return null;
+        }
+
+        usort($players, function (Player $a, Player $b) {
+            return ($a->getPlayingOrder() ?? 999) <=> ($b->getPlayingOrder() ?? 999);
+        });
+
+        $turn = (int) ($game->getTurn() ?? 1);
+        $index = ($turn - 1) % count($players);
+
+        return $players[$index] ?? null;
+    }
+
+    public function playCurrentTurn(Game $game): array
+    {
+        if ($game->getStatus()->value !== 'ongoing') {
+            throw new \InvalidArgumentException('Game must be ongoing to play a turn.');
+        }
+
+        $currentPlayer = $this->getCurrentPlayer($game);
+        if (!$currentPlayer) {
+            throw new \RuntimeException('No players available for this game.');
+        }
+
+        $roll = random_int(1, 4) + random_int(1, 6);
+        $position = $this->positionRepository->findOneByGameAndNumber($game->getId(), $roll);
+        if (!$position) {
+            throw new \RuntimeException('Position not found for roll: ' . $roll);
+        }
+
+        $currentPlayer->setPosition($position);
+        $this->entityManager->persist($currentPlayer);
+
+        $game->setTurn(((int) ($game->getTurn() ?? 1)) + 1);
+        $this->entityManager->persist($game);
+        $this->entityManager->flush();
+
+        $nextPlayer = $this->getCurrentPlayer($game);
+
+        return [
+            'player' => $currentPlayer,
+            'roll' => $roll,
+            'position' => $position,
+            'turn' => $game->getTurn(),
+            'nextPlayer' => $nextPlayer,
+        ];
+    }
+
     public function initializeGame(int $gameId, array $playerIds): void {
 
         $reparition = [

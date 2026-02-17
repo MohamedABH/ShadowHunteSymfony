@@ -16,6 +16,17 @@ class PositionRepository extends ServiceEntityRepository
         parent::__construct($registry, Position::class);
     }
 
+    public function findOneByGameAndNumber(int $gameId, int $number): ?Position
+    {
+        return $this->createQueryBuilder('p')
+            ->andWhere('p.game = :gameId')
+            ->andWhere('p.number = :number')
+            ->setParameter('gameId', $gameId)
+            ->setParameter('number', $number)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     //    /**
     //     * @return Position[] Returns an array of Position objects
     //     */

@@ -19,6 +19,8 @@ use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use App\Service\GameService;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
 
 #[Route('api/game', name: 'app_game')]
 final class GameController extends AbstractController
@@ -189,6 +191,83 @@ final class GameController extends AbstractController
             'message' => 'Game started successfully',
             'gameId' => $game->getId(),
             'status' => $game->getStatus()->value,
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/{gameId}/turn/play', name: 'app_game_turn_play', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function playTurn(
+        int $gameId,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        GameService $gameService,
+        HubInterface $hub,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        $game = $gameRepository->find($gameId);
+
+        if (!$game) {
+            return $this->json(
+                ['error' => 'Game not found'],
+                Response::HTTP_NOT_FOUND
+            );
+        }
+
+        $activePlayer = $playerRepository->findActivePlayerByUser($user);
+        if (!$activePlayer || $activePlayer->getGame()->getId() !== $gameId) {
+            return $this->json(
+                ['error' => 'User is not part of this game'],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+        $currentPlayer = $gameService->getCurrentPlayer($game);
+        if (!$currentPlayer || $currentPlayer->getId() !== $activePlayer->getId()) {
+            return $this->json(
+                ['error' => 'It is not your turn'],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+        try {
+            $result = $gameService->playCurrentTurn($game);
+        } catch (\Exception $e) {
+            return $this->json(
+                ['error' => $e->getMessage()],
+                Response::HTTP_CONFLICT
+            );
+        }
+
+        $update = new Update(
+            topics: ["game/{$gameId}"],
+            data: json_encode([
+                'type' => 'turn_played',
+                'gameId' => $gameId,
+                'playerId' => $result['player']->getId(),
+                'roll' => $result['roll'],
+                'position' => [
+                    'id' => $result['position']->getId(),
+                    'number' => $result['position']->getNumber(),
+                ],
+                'turn' => $result['turn'],
+                'nextPlayerId' => $result['nextPlayer']?->getId(),
+            ])
+        );
+
+        $hub->publish($update);
+
+        return $this->json([
+            'message' => 'Turn played successfully',
+            'gameId' => $gameId,
+            'playerId' => $result['player']->getId(),
+            'roll' => $result['roll'],
+            'position' => [
+                'id' => $result['position']->getId(),
+                'number' => $result['position']->getNumber(),
+            ],
+            'turn' => $result['turn'],
+            'nextPlayerId' => $result['nextPlayer']?->getId(),
         ], Response::HTTP_OK);
     }
 
