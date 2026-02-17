@@ -27,9 +27,8 @@ final class GameController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function create(
         Request $request,
-        EntityManagerInterface $entityManager,
-        GameRepository $gameRepository,
         PlayerRepository $playerRepository,
+        GameService $gameService,
         #[CurrentUser] $user,
         SerializerInterface $serializer,
         ValidatorInterface $validator,
@@ -64,20 +63,12 @@ final class GameController extends AbstractController
         }
 
         $gameName = $dto->name ?? 'New Game';
-        $game = $gameRepository->createGame($gameName, $user);
-
-        $entityManager->persist($game);
-        // Persist any newly created players attached to the game
-        foreach ($game->getPlayers() as $p) {
-            $entityManager->persist($p);
-        }
-
-        $entityManager->flush();
+        
+        // Use GameService to create game
+        $game = $gameService->createGame($gameName, $user);
 
         // Automatically add the creator as a player
-        $player = $playerRepository->createPlayer($user, $game);
-        $entityManager->persist($player);
-        $entityManager->flush();
+        $gameService->addPlayerToGame($user, $game);
 
         return $this->json([
             'message' => 'Game created successfully',
@@ -89,9 +80,9 @@ final class GameController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function join(
         int $gameId,
-        EntityManagerInterface $entityManager,
         GameRepository $gameRepository,
         PlayerRepository $playerRepository,
+        GameService $gameService,
         #[CurrentUser] $user,
     ): JsonResponse
     {
@@ -117,10 +108,8 @@ final class GameController extends AbstractController
             );
         }
 
-        $player = $playerRepository->createPlayer($user, $game);
-        $entityManager->persist($player);
-
-        $entityManager->flush();
+        // Use GameService to add player
+        $gameService->addPlayerToGame($user, $game);
 
         return $this->json([
             'message' => 'Game joined successfully',
@@ -132,9 +121,8 @@ final class GameController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function leave(
         Request $request,
-        EntityManagerInterface $entityManager,
-        GameRepository $gameRepository,
         PlayerRepository $playerRepository,
+        GameService $gameService,
         #[CurrentUser] $user,
     ): JsonResponse
     {
@@ -150,49 +138,10 @@ final class GameController extends AbstractController
             );
         }
 
-        // delete player from game if game is not started, else inflict max damage to player to eliminate them
         $game = $activePlayer->getGame();
         
-        // Check if user is the game owner
-        $isOwner = $game->getOwner()->getId() === $user->getId();
-        
-        if ($isOwner) {
-            // Owner leaves: designate another player as the new owner
-            $remainingPlayers = $game->getPlayers()->filter(function($p) use ($activePlayer) {
-                return $p->getId() !== $activePlayer->getId();
-            });
-            
-            if ($remainingPlayers->count() > 0) {
-                // Promote the first remaining player to owner
-                $newOwner = $remainingPlayers->first()->getUser();
-                $game->setOwner($newOwner);
-                $entityManager->persist($game);
-            } else {
-                // Owner is the only player: abort the game
-                $game->setStatus(GameStatus::ABORTED);
-                $entityManager->persist($game);
-            }
-        }
-        
-        // Remove the leaving player
-        if ($game->getStatus()->value === 'pending') {
-            $entityManager->remove($activePlayer);
-        } else {
-            $activePlayer->setCurrentDamage(100); // assuming 100 is max damage
-            $entityManager->persist($activePlayer);
-        }
-
-        // Check if game has no players left, if so abort the game
-        $remainingPlayersCount = $game->getPlayers()->filter(function($p) use ($activePlayer) {
-            return $p->getId() !== $activePlayer->getId();
-        })->count();
-        
-        if ($remainingPlayersCount === 0) {
-            $game->setStatus(GameStatus::ABORTED);
-            $entityManager->persist($game);
-        }
-
-        $entityManager->flush();
+        // Use GameService to remove player
+        $gameService->removePlayerFromGame($user, $game);
 
         return $this->json([
             'message' => 'Game left successfully',
@@ -204,7 +153,6 @@ final class GameController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function start(
         int $gameId,
-        EntityManagerInterface $entityManager,
         GameRepository $gameRepository,
         GameService $gameService,
         #[CurrentUser] $user,
@@ -227,22 +175,15 @@ final class GameController extends AbstractController
             );
         }
 
-        // Check game status is 'pending' before starting
-        if ($game->getStatus()->value !== 'pending') {
+        try {
+            // Use GameService to start game
+            $gameService->startGame($game);
+        } catch (\InvalidArgumentException $e) {
             return $this->json(
-                ['error' => 'Game cannot be started. Current status: ' . $game->getStatus()->value],
+                ['error' => $e->getMessage()],
                 Response::HTTP_CONFLICT
             );
         }
-
-        // Update game status to 'in_progress'
-        $game->setStatus(GameStatus::ONGOING);
-        $entityManager->persist($game);
-        $entityManager->flush();
-
-        // Initialize game with character card assignment and deck creation
-        $playerIds = array_map(fn($player) => $player->getId(), $game->getPlayers()->toArray());
-        $gameService->initializeGame($game->getId(), $playerIds);
 
         return $this->json([
             'message' => 'Game started successfully',

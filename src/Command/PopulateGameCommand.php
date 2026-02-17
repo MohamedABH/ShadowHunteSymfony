@@ -8,13 +8,10 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use App\Entity\User;
-use App\Enum\GameStatus;
 use App\Repository\GameRepository;
 use App\Repository\PlayerRepository;
-use App\Repository\RoleRepository;
-use App\Repository\UserRepository;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use App\Service\UserService;
+use App\Service\GameService;
 use Doctrine\ORM\EntityManagerInterface;
 
 #[AsCommand(
@@ -24,11 +21,10 @@ use Doctrine\ORM\EntityManagerInterface;
 class PopulateGameCommand extends Command
 {
     public function __construct(
-        private readonly UserRepository $userRepository,
-        private readonly PlayerRepository $playerRepository,
         private readonly GameRepository $gameRepository,
-        private readonly RoleRepository $roleRepository,
-        private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly PlayerRepository $playerRepository,
+        private readonly UserService $userService,
+        private readonly GameService $gameService,
         private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
@@ -50,12 +46,6 @@ class PopulateGameCommand extends Command
             return Command::FAILURE;
         }
 
-        $roleUser = $this->roleRepository->findOneBy(['libelle' => 'ROLE_USER']);
-        if (!$roleUser) {
-            $io->error('ROLE_USER not found. Make sure roles are loaded in the database.');
-            return Command::FAILURE;
-        }
-
         $users = [
             ['username' => 'player1_populate_test', 'email' => 'player1populate@test.com', 'password' => 'player123'],
             ['username' => 'player2_populate_test', 'email' => 'player2populate@test.com', 'password' => 'player123'],
@@ -65,37 +55,13 @@ class PopulateGameCommand extends Command
         $io->section('Step 1: Preparing test users...');
         $createdUsers = [];
         foreach ($users as $userData) {
-            $existingUser = $this->userRepository->findOneBy(['username' => $userData['username']]);
-            if (!$existingUser) {
-                $existingUser = $this->userRepository->findOneBy(['email' => $userData['email']]);
-            }
+            $existingUser = $this->userService->findUser($userData['username'], $userData['email']);
 
             if ($existingUser) {
-                $nonCompletedGames = $this->gameRepository->createQueryBuilder('g')
-                    ->leftJoin('g.players', 'p')
-                    ->where('p.user = :user')
-                    ->andWhere('g.status IN (:statuses)')
-                    ->setParameter('user', $existingUser)
-                    ->setParameter('statuses', [GameStatus::PENDING, GameStatus::ONGOING])
-                    ->getQuery()
-                    ->getResult();
-
-                foreach ($nonCompletedGames as $activeGame) {
-                    if ($activeGame->getId() === $gameId) {
-                        continue;
-                    }
-                    foreach ($activeGame->getPlayers() as $player) {
-                        if ($player->getUser()->getId() === $existingUser->getId()) {
-                            $activeGame->removePlayer($player);
-                            $this->entityManager->remove($player);
-                            $io->text("Removed {$userData['username']} from game ID: {$activeGame->getId()}");
-                        }
-                    }
-                }
-
-                if (!in_array('ROLE_USER', $existingUser->getRoles(), true)) {
-                    $existingUser->addRole($roleUser);
-                    $this->entityManager->persist($existingUser);
+                // Remove user from active games (except current game)
+                $removedCount = $this->userService->removeUserFromActiveGames($existingUser);
+                if ($removedCount > 0) {
+                    $io->text("Removed {$userData['username']} from {$removedCount} active game(s)");
                 }
 
                 $io->text("Reusing existing user: {$userData['username']}");
@@ -103,18 +69,22 @@ class PopulateGameCommand extends Command
                 continue;
             }
 
-            $user = new User();
-            $user->setUsername($userData['username']);
-            $user->setEmail($userData['email']);
-            $hashedPassword = $this->passwordHasher->hashPassword($user, $userData['password']);
-            $user->setPassword($hashedPassword);
-            $user->addRole($roleUser);
-            $this->entityManager->persist($user);
-            $createdUsers[] = $user;
-            $io->text("Created new user: {$userData['username']}");
+            // Create new user
+            try {
+                $user = $this->userService->createUser(
+                    $userData['username'],
+                    $userData['email'],
+                    $userData['password'],
+                    ['ROLE_USER']
+                );
+                $createdUsers[] = $user;
+                $io->text("Created new user: {$userData['username']}");
+            } catch (\Exception $e) {
+                $io->error("Failed to create user {$userData['username']}: " . $e->getMessage());
+                continue;
+            }
         }
 
-        $this->entityManager->flush();
         $io->success('Test users ready');
 
         $io->section("Step 2: Joining users to game ID {$gameId}...");
@@ -130,7 +100,9 @@ class PopulateGameCommand extends Command
                 $io->text("User already in game: {$user->getUsername()}");
                 continue;
             }
-            $player = $this->playerRepository->createPlayer($user, $game);
+            
+            // Use GameService to add player
+            $player = $this->gameService->addPlayerToGame($user, $game);
             $player->setPlayingOrder($playingOrder);
             $playingOrder++;
             $this->entityManager->persist($player);

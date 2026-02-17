@@ -7,6 +7,7 @@ use App\Entity\RefreshToken;
 use App\Repository\RefreshTokenRepository;
 use App\Repository\UserRepository;
 use App\Entity\User;
+use App\Service\AuthService;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,8 +23,7 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 class TokenController extends AbstractController
 {
     public function __construct(
-        private RefreshTokenRepository $refreshTokenRepository,
-        private JWTTokenManagerInterface $jwtTokenManager,
+        private AuthService $authService,
     ) {}
 
     #[Route('/refresh', methods: ['POST'])]
@@ -40,23 +40,14 @@ class TokenController extends AbstractController
             return $this->json(['error' => 'Missing refresh_token'], Response::HTTP_BAD_REQUEST);
         }
 
-        $refreshToken = $this->refreshTokenRepository->findValidByToken($refreshTokenString);
+        $refreshToken = $this->authService->validateRefreshToken($refreshTokenString, $user);
 
-        if (!$refreshToken || $refreshToken->getUser()->getId() !== $user->getId()) {
+        if (!$refreshToken) {
             return $this->json(['error' => 'Invalid refresh token'], Response::HTTP_UNAUTHORIZED);
         }
 
-        // Generate new access token
-        $newAccessToken = $this->jwtTokenManager->create($user);
-
-        // Optionally rotate refresh token: revoke old, create new
-        $this->refreshTokenRepository->revokeByUser($user);
-        
-        $newRefreshToken = new RefreshToken();
-        $newRefreshToken->setUser($user);
-        $newRefreshToken->setToken(bin2hex(random_bytes(32)));
-        $newRefreshToken->setExpiresAt(new \DateTimeImmutable('+30 days'));
-        $this->refreshTokenRepository->save($newRefreshToken, true);
+        // Generate new tokens
+        $tokens = $this->authService->refreshTokens($user);
 
         $response = $this->json([
             'message' => 'Token refreshed successfully',
@@ -65,7 +56,7 @@ class TokenController extends AbstractController
         // Set new JWT token in HTTP-only cookie
         $response->headers->setCookie(
             Cookie::create('jwt_token')
-                ->withValue($newAccessToken)
+                ->withValue($tokens['accessToken'])
                 ->withExpires(new \DateTimeImmutable('+1 hour'))
                 ->withPath('/')
                 ->withSecure(false) // Set to true in production with HTTPS
@@ -76,7 +67,7 @@ class TokenController extends AbstractController
         // Set new refresh token in HTTP-only cookie
         $response->headers->setCookie(
             Cookie::create('refresh_token')
-                ->withValue($newRefreshToken->getToken())
+                ->withValue($tokens['refreshToken']->getToken())
                 ->withExpires(new \DateTimeImmutable('+30 days'))
                 ->withPath('/')
                 ->withSecure(false) // Set to true in production with HTTPS

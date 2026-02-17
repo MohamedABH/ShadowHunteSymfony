@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Entity\Role;
 use App\Repository\UserRepository;
 use App\Dto\RegistrationRequestDto;
+use App\Service\UserService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,11 +23,9 @@ final class RegistrationController extends AbstractController
     #[Route('/register', name: 'register', methods: ['POST'])]
     public function register(
         Request $request,
-        UserPasswordHasherInterface $passwordHasher,
         SerializerInterface $serializer,
         ValidatorInterface $validator,
-        EntityManagerInterface $entityManager,
-        UserRepository $userRepository,
+        UserService $userService,
     ): JsonResponse {
         try {
             $dto = $serializer->deserialize($request->getContent(), RegistrationRequestDto::class, 'json');
@@ -48,26 +47,23 @@ final class RegistrationController extends AbstractController
         }
 
         // Check duplicates
-        if ($userRepository->findOneBy(['email' => $dto->email])) {
-            return $this->json(['error' => 'Email already registered'], Response::HTTP_CONFLICT);
+        if ($userService->userExists($dto->username, $dto->email)) {
+            $existingUser = $userService->findUser($dto->username, $dto->email);
+            
+            if ($existingUser && $existingUser->getEmail() === $dto->email) {
+                return $this->json(['error' => 'Email already registered'], Response::HTTP_CONFLICT);
+            }
+            
+            if ($existingUser && $existingUser->getUsername() === $dto->username) {
+                return $this->json(['error' => 'Username already taken'], Response::HTTP_CONFLICT);
+            }
         }
 
-        if ($userRepository->findOneBy(['username' => $dto->username])) {
-            return $this->json(['error' => 'Username already taken'], Response::HTTP_CONFLICT);
-        }
-
-        // Create user entity
-        $user = new User();
-        $user->setEmail($dto->email);
-        $user->setUsername($dto->username);
-        $user->setPassword($passwordHasher->hashPassword($user, $dto->password));
-
-        // Assign ROLE_USER to new user (created by fixtures)
-        $roleRepository = $entityManager->getRepository(Role::class);
-        $roleUser = $roleRepository->findOneBy(['libelle' => 'ROLE_USER']);
-        
-        if ($roleUser) {
-            $user->addRole($roleUser);
+        try {
+            // Create user with default ROLE_USER
+            $user = $userService->createUser($dto->username, $dto->email, $dto->password, ['ROLE_USER']);
+        } catch (\InvalidArgumentException $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
         }
 
         // Validate entity
@@ -79,10 +75,6 @@ final class RegistrationController extends AbstractController
             }
             return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
         }
-
-        // Persist to database
-        $entityManager->persist($user);
-        $entityManager->flush();
 
         return $this->json([
             'message' => 'User registered successfully',

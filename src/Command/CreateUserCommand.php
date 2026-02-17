@@ -9,11 +9,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use App\Entity\User;
-use App\Repository\UserRepository;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
-use Doctrine\ORM\EntityManagerInterface;
-use App\Repository\RoleRepository;
+use App\Service\UserService;
 
 #[AsCommand(
     name: 'app:create-user',
@@ -22,10 +18,7 @@ use App\Repository\RoleRepository;
 class CreateUserCommand extends Command
 {
     public function __construct(
-        private readonly UserRepository $userRepository,
-        private readonly UserPasswordHasherInterface $passwordHasher,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly RoleRepository $roleRepository,
+        private readonly UserService $userService,
     )
     {
         parent::__construct();
@@ -49,33 +42,25 @@ class CreateUserCommand extends Command
         $password = $input->getArgument('password');
         
         // Check if user already exists
-        if ($this->userRepository->findOneBy(['username' => $username]) || $this->userRepository->findOneBy(['email' => $email])) {
+        if ($this->userService->userExists($username, $email)) {
             $io->error('User with this username or email already exists.');
             return Command::FAILURE;
         }
 
-        $user = new User();
-        $user->setUsername($username);
-        $user->setEmail($email);
-        $hashedPassword = $this->passwordHasher->hashPassword($user, $password);
-        $user->setPassword($hashedPassword);
-        
-        // Set roles: always add USER role, add ADMIN role if --admin flag is present
-        $roles = $this->roleRepository->findBy(['libelle' => ['ROLE_USER', 'ROLE_ADMIN']]);
-        foreach ($roles as $role) {
-            if ($role->getLibelle() === 'ROLE_USER') {
-                $user->addRole($role);
-            }
-            if ($input->getOption('admin') && $role->getLibelle() === 'ROLE_ADMIN') {
-                $user->addRole($role);
-            }
+        // Determine roles
+        $roles = ['ROLE_USER'];
+        if ($input->getOption('admin')) {
+            $roles[] = 'ROLE_ADMIN';
         }
-        
-        $this->entityManager->persist($user);
-        $this->entityManager->flush();
 
-        $io->success('User created successfully!');
-
-        return Command::SUCCESS;
+        try {
+            // Use UserService to create user
+            $user = $this->userService->createUser($username, $email, $password, $roles);
+            $io->success('User created successfully!');
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            $io->error('Failed to create user: ' . $e->getMessage());
+            return Command::FAILURE;
+        }
     }
 }

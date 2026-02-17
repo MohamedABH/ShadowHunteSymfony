@@ -6,6 +6,8 @@ use App\Dto\LoginRequestDto;
 use App\Entity\RefreshToken;
 use App\Repository\RefreshTokenRepository;
 use App\Repository\UserRepository;
+use App\Service\UserService;
+use App\Service\AuthService;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,10 +27,8 @@ final class AuthController extends AbstractController
     #[Route('/login', name: 'login', methods: ['POST'])]
     public function login(
         Request $request,
-        UserRepository $userRepository,
-        UserPasswordHasherInterface $passwordHasher,
-        JWTTokenManagerInterface $jwtManager,
-        RefreshTokenRepository $refreshTokenRepository,
+        UserService $userService,
+        AuthService $authService,
         SerializerInterface $serializer,
         ValidatorInterface $validator
     ): JsonResponse
@@ -53,28 +53,14 @@ final class AuthController extends AbstractController
             return $this->json(['error' => 'Provide username or email and password'], Response::HTTP_BAD_REQUEST);
         }
 
-        $user = null;
-        if (!empty($dto->username)) {
-            $user = $userRepository->findOneBy(['username' => $dto->username]);
-        }
-        if (!$user && !empty($dto->email)) {
-            $user = $userRepository->findOneBy(['email' => $dto->email]);
-        }
+        $user = $userService->findUser($dto->username, $dto->email);
 
-        if (!$user || !$passwordHasher->isPasswordValid($user, $dto->password)) {
+        if (!$user || !$userService->isPasswordValid($user, $dto->password)) {
             return $this->json(['error' => 'Invalid credentials'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $token = $jwtManager->create($user);
-
-        // Revoke old refresh tokens and create new one
-        $refreshTokenRepository->revokeByUser($user);
-        
-        $refreshToken = new RefreshToken();
-        $refreshToken->setUser($user);
-        $refreshToken->setToken(bin2hex(random_bytes(32)));
-        $refreshToken->setExpiresAt(new \DateTimeImmutable('+30 days'));
-        $refreshTokenRepository->save($refreshToken, true);
+        // Use AuthService to handle login
+        $tokens = $authService->login($user);
 
         $response = $this->json([
             'message' => 'Login successful',
@@ -86,7 +72,7 @@ final class AuthController extends AbstractController
         // Set JWT token in HTTP-only cookie (expires in 1 hour by default)
         $response->headers->setCookie(
             Cookie::create('jwt_token')
-                ->withValue($token)
+                ->withValue($tokens['accessToken'])
                 ->withExpires(new \DateTimeImmutable('+1 hour'))
                 ->withPath('/')
                 ->withSecure(false) // Set to true in production with HTTPS
@@ -97,7 +83,7 @@ final class AuthController extends AbstractController
         // Set refresh token in HTTP-only cookie
         $response->headers->setCookie(
             Cookie::create('refresh_token')
-                ->withValue($refreshToken->getToken())
+                ->withValue($tokens['refreshToken']->getToken())
                 ->withExpires(new \DateTimeImmutable('+30 days'))
                 ->withPath('/')
                 ->withSecure(false) // Set to true in production with HTTPS

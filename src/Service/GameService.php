@@ -7,10 +7,14 @@ use App\Repository\PlayerRepository;
 use App\Repository\CharacterCardRepository;
 use App\Repository\LocationRepository;
 use App\Repository\PositionRepository;
+use App\Entity\Game;
+use App\Entity\User;
+use App\Entity\Player;
 use App\Entity\Location;
 use App\Entity\Position;
 use App\Entity\ActionCard;
 use App\Enum\LocationEnum;
+use App\Enum\GameStatus;
 use Doctrine\ORM\EntityManagerInterface;
 
 class GameService {
@@ -23,6 +27,132 @@ class GameService {
         private readonly PositionRepository $positionRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
+    }
+
+    /**
+     * Create a new game
+     * 
+     * @param string $name
+     * @param User $owner
+     * @return Game
+     */
+    public function createGame(string $name, User $owner): Game
+    {
+        $game = $this->gameRepository->createGame($name, $owner);
+        $this->entityManager->persist($game);
+        
+        // Persist any newly created players attached to the game
+        foreach ($game->getPlayers() as $player) {
+            $this->entityManager->persist($player);
+        }
+        
+        $this->entityManager->flush();
+
+        return $game;
+    }
+
+    /**
+     * Add a player to a game
+     * 
+     * @param User $user
+     * @param Game $game
+     * @return Player
+     */
+    public function addPlayerToGame(User $user, Game $game): Player
+    {
+        $player = $this->playerRepository->createPlayer($user, $game);
+        $this->entityManager->persist($player);
+        $this->entityManager->flush();
+
+        return $player;
+    }
+
+    /**
+     * Remove a player from a game
+     * If the player is the owner, transfer ownership or abort the game
+     * If game is ongoing, inflict max damage instead of removing
+     * 
+     * @param User $user
+     * @param Game $game
+     * @return void
+     */
+    public function removePlayerFromGame(User $user, Game $game): void
+    {
+        // Find the player in the game
+        $playerToRemove = null;
+        foreach ($game->getPlayers() as $player) {
+            if ($player->getUser()->getId() === $user->getId()) {
+                $playerToRemove = $player;
+                break;
+            }
+        }
+
+        if (!$playerToRemove) {
+            throw new \InvalidArgumentException('User is not part of this game');
+        }
+
+        // Check if user is the game owner
+        $isOwner = $game->getOwner()->getId() === $user->getId();
+        
+        if ($isOwner) {
+            // Owner leaves: designate another player as the new owner
+            $remainingPlayers = $game->getPlayers()->filter(function($p) use ($playerToRemove) {
+                return $p->getId() !== $playerToRemove->getId();
+            });
+            
+            if ($remainingPlayers->count() > 0) {
+                // Promote the first remaining player to owner
+                $newOwner = $remainingPlayers->first()->getUser();
+                $game->setOwner($newOwner);
+                $this->entityManager->persist($game);
+            } else {
+                // Owner is the only player: abort the game
+                $game->setStatus(GameStatus::ABORTED);
+                $this->entityManager->persist($game);
+            }
+        }
+        
+        // Remove the leaving player
+        if ($game->getStatus()->value === 'pending') {
+            $this->entityManager->remove($playerToRemove);
+        } else {
+            $playerToRemove->setCurrentDamage(100); // assuming 100 is max damage
+            $this->entityManager->persist($playerToRemove);
+        }
+
+        // Check if game has no players left, if so abort the game
+        $remainingPlayersCount = $game->getPlayers()->filter(function($p) use ($playerToRemove) {
+            return $p->getId() !== $playerToRemove->getId();
+        })->count();
+        
+        if ($remainingPlayersCount === 0) {
+            $game->setStatus(GameStatus::ABORTED);
+            $this->entityManager->persist($game);
+        }
+
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Start a game (set status to ONGOING and initialize game mechanics)
+     * 
+     * @param Game $game
+     * @return void
+     */
+    public function startGame(Game $game): void
+    {
+        if ($game->getStatus()->value !== 'pending') {
+            throw new \InvalidArgumentException('Game cannot be started. Current status: ' . $game->getStatus()->value);
+        }
+
+        // Update game status to 'ongoing'
+        $game->setStatus(GameStatus::ONGOING);
+        $this->entityManager->persist($game);
+        $this->entityManager->flush();
+
+        // Initialize game with character card assignment and deck creation
+        $playerIds = array_map(fn($player) => $player->getId(), $game->getPlayers()->toArray());
+        $this->initializeGame($game->getId(), $playerIds);
     }
 
     public function initializeGame(int $gameId, array $playerIds): void {
