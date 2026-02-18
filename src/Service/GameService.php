@@ -184,7 +184,7 @@ class GameService {
         }
 
         $roll = random_int(1, 4) + random_int(1, 6);
-        $position = $this->positionRepository->findOneByGameAndNumber($game->getId(), $roll);
+        $position = $this->positionRepository->findOneByGameAndRoll($game->getId(), $roll);
         if (!$position) {
             throw new \RuntimeException('Position not found for roll: ' . $roll);
         }

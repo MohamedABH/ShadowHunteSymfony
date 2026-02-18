@@ -27,6 +27,31 @@ class PositionRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    public function findOneByGameAndRoll(int $gameId, int $roll): ?Position
+    {
+        $positions = $this->createQueryBuilder('p')
+            ->addSelect('pc')
+            ->leftJoin('p.placeCard', 'pc')
+            ->andWhere('p.game = :gameId')
+            ->setParameter('gameId', $gameId)
+            ->getQuery()
+            ->getResult();
+
+        foreach ($positions as $position) {
+            $placeCard = $position->getPlaceCard();
+            if (!$placeCard) {
+                continue;
+            }
+
+            $placeRoll = $placeCard->getRoll();
+            if (is_array($placeRoll) && in_array($roll, $placeRoll, true)) {
+                return $position;
+            }
+        }
+
+        return null;
+    }
+
     //    /**
     //     * @return Position[] Returns an array of Position objects
     //     */
