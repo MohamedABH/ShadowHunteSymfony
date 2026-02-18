@@ -116,6 +116,9 @@ class SetupGameCommand extends Command
         }
         $io->success('All players added to game');
 
+        // Refresh game from database to ensure players are loaded
+        $this->entityManager->refresh($game);
+
         // Step 4: Initialize and start the game
         $io->section('Step 4: Initializing and starting game...');
         try {
