@@ -245,7 +245,7 @@ final class GameController extends AbstractController
                 'type' => 'turn_played',
                 'gameId' => $gameId,
                 'playerId' => $result['player']->getId(),
-                'roll' => $result['roll'],
+                'dice' => $result['dice'],
                 'position' => [
                     'id' => $result['position']->getId(),
                     'number' => $result['position']->getNumber(),
@@ -261,7 +261,7 @@ final class GameController extends AbstractController
             'message' => 'Turn played successfully',
             'gameId' => $gameId,
             'playerId' => $result['player']->getId(),
-            'roll' => $result['roll'],
+            'dice' => $result['dice'],
             'position' => [
                 'id' => $result['position']->getId(),
                 'number' => $result['position']->getNumber(),
