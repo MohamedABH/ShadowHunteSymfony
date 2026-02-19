@@ -1,9 +1,26 @@
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    working_dir: /app
+    command: php -S 0.0.0.0:8000 -t public public/index.php
+    volumes:
+      - ./:/app
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: mysql://dev:plouf@database:3306/shadowHunter?serverVersion=10.11.2-MariaDB&charset=utf8mb4
+    depends_on:
+      database:
+        condition: service_healthy
+
 ###> doctrine/doctrine-bundle ###
   database:
     ports:
-      - "3306:3306"
+      - "3307:3306"
 ###< doctrine/doctrine-bundle ###
 
 ###> symfony/mercure-bundle ###
