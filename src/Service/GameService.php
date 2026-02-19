@@ -183,10 +183,12 @@ class GameService {
             throw new \RuntimeException('No players available for this game.');
         }
 
-        $roll = random_int(1, 4) + random_int(1, 6);
-        $position = $this->positionRepository->findOneByGameAndRoll($game->getId(), $roll);
+        $d4 = random_int(1, 4);
+        $d6 = random_int(1, 6);
+        $rollTotal = $d4 + $d6;
+        $position = $this->positionRepository->findOneByGameAndRoll($game->getId(), $rollTotal);
         if (!$position) {
-            throw new \RuntimeException('Position not found for roll: ' . $roll);
+            throw new \RuntimeException('Position not found for roll: ' . $rollTotal);
         }
 
         $currentPlayer->setPosition($position);
@@ -200,7 +202,10 @@ class GameService {
 
         return [
             'player' => $currentPlayer,
-            'roll' => $roll,
+            'dice' => [
+                'd4' => $d4,
+                'd6' => $d6,
+            ],
             'position' => $position,
             'turn' => $game->getTurn(),
             'nextPlayer' => $nextPlayer,
