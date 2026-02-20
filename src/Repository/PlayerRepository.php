@@ -42,7 +42,7 @@ class PlayerRepository extends ServiceEntityRepository
 
         $player = new Player();
         $player->setUser($user);
-        $player->setGame($game);
+        $game->addPlayer($player);
         $player->setCurrentDamage(0);
         $player->setRevealed(false);
 
