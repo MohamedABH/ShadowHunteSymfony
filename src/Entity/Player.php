@@ -207,7 +207,7 @@ class Player
     /**
      * @return Collection<int, Location>
      */
-    public function getCardss(): Collection
+    public function getCards(): Collection
     {
         return $this->cards;
     }
