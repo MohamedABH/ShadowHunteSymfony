@@ -360,7 +360,7 @@ final class GameController extends AbstractController
                     'type' => $actionCard->getType()?->value,
                     'count' => $actionCard->getCount(),
                 ];
-            }, $player->getCardss()->toArray());
+            }, $player->getCards()->toArray());
 
             $position = $player->getPosition();
             return [
