@@ -7,28 +7,28 @@ use App\Entity\Player;
 use App\Entity\Game;
 
 /**
- * Interface for handling action card effects
+ * Interface for handling place card effects
  */
-interface ActionCardEffectHandlerInterface
+interface PlaceCardEffectHandlerInterface
 {
     /**
      * Execute the card's effect
      *
-     * @param ActionCard $card The card being played
+     * @param PlaceCard $card The card being played
      * @param Player $player The player who played the card
      * @param Game $game The current game
      * @param array $context Additional context (target player, dice results, choices, etc.)
-     * @return ActionCardEffectResult Result of the effect execution
+     * @return PlaceCardEffectResult Result of the effect execution
      */
-    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): ActionCardEffectResult;
+    public function execute(PlaceCard $card, Player $player, Game $game, array $context = []): PlaceCardEffectResult;
 
     /**
      * Check if this handler supports the given card
      *
-     * @param ActionCard $card
+     * @param PlaceCard $card
      * @return bool
      */
-    public function supports(ActionCard $card): bool;
+    public function supports(PlaceCard $card): bool;
 
     /**
      * Get required context parameters for this card
