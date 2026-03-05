@@ -16,6 +16,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 
 #[Route('/api', name: 'api_')]
 final class RegistrationController extends AbstractController
@@ -29,7 +30,7 @@ final class RegistrationController extends AbstractController
     ): JsonResponse {
         try {
             $dto = $serializer->deserialize($request->getContent(), RegistrationRequestDto::class, 'json');
-        } catch (\Symfony\Component\Serializer\Exception\NotEncodableValueException $e) {
+        } catch (NotEncodableValueException $e) {
             error_log('Invalid JSON on /register: ' . $request->getContent());
             return $this->json(['error' => 'Invalid JSON: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }

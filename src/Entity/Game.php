@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use App\Repository\GameRepository;
 use App\Enum\GameStatus;
+use App\Enum\TurnPhase;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -49,6 +50,12 @@ class Game
 
     #[ORM\Column]
     private ?int $turn = null;
+
+    #[ORM\Column(length: 64, enumType: TurnPhase::class)]
+    private ?TurnPhase $turnPhase = null;
+
+    #[ORM\Column(type: 'smallint', nullable: true)]
+    private ?int $currentTurnRoll = null;
 
     #[ORM\ManyToOne(inversedBy: 'ownedGames')]
     #[ORM\JoinColumn(nullable: false)]
@@ -189,6 +196,30 @@ class Game
     public function setTurn(int $turn): static
     {
         $this->turn = $turn;
+
+        return $this;
+    }
+
+    public function getTurnPhase(): ?TurnPhase
+    {
+        return $this->turnPhase;
+    }
+
+    public function setTurnPhase(TurnPhase $turnPhase): static
+    {
+        $this->turnPhase = $turnPhase;
+
+        return $this;
+    }
+
+    public function getCurrentTurnRoll(): ?int
+    {
+        return $this->currentTurnRoll;
+    }
+
+    public function setCurrentTurnRoll(?int $currentTurnRoll): static
+    {
+        $this->currentTurnRoll = $currentTurnRoll;
 
         return $this;
     }

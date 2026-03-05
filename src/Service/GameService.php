@@ -6,7 +6,6 @@ use App\Repository\GameRepository;
 use App\Repository\PlayerRepository;
 use App\Repository\CharacterCardRepository;
 use App\Repository\LocationRepository;
-use App\Repository\PositionRepository;
 use App\Entity\Game;
 use App\Entity\User;
 use App\Entity\Player;
@@ -15,6 +14,7 @@ use App\Entity\Position;
 use App\Entity\ActionCard;
 use App\Enum\LocationEnum;
 use App\Enum\GameStatus;
+use App\Enum\TurnPhase;
 use Doctrine\ORM\EntityManagerInterface;
 
 class GameService {
@@ -24,7 +24,6 @@ class GameService {
         private readonly PlayerRepository $playerRepository,
         private readonly CharacterCardRepository $characterRepository,
         private readonly LocationRepository $locationRepository,
-        private readonly PositionRepository $positionRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -155,63 +154,6 @@ class GameService {
         $this->initializeGame($game->getId(), $playerIds);
     }
 
-    public function getCurrentPlayer(Game $game): ?Player
-    {
-        $players = $game->getPlayers()->toArray();
-        if (count($players) === 0) {
-            return null;
-        }
-
-        usort($players, function (Player $a, Player $b) {
-            return ($a->getPlayingOrder() ?? 999) <=> ($b->getPlayingOrder() ?? 999);
-        });
-
-        $turn = (int) ($game->getTurn() ?? 1);
-        $index = ($turn - 1) % count($players);
-
-        return $players[$index] ?? null;
-    }
-
-    public function playCurrentTurn(Game $game): array
-    {
-        if ($game->getStatus()->value !== 'ongoing') {
-            throw new \InvalidArgumentException('Game must be ongoing to play a turn.');
-        }
-
-        $currentPlayer = $this->getCurrentPlayer($game);
-        if (!$currentPlayer) {
-            throw new \RuntimeException('No players available for this game.');
-        }
-
-        $d4 = random_int(1, 4);
-        $d6 = random_int(1, 6);
-        $rollTotal = $d4 + $d6;
-        $position = $this->positionRepository->findOneByGameAndRoll($game->getId(), $rollTotal);
-        if (!$position) {
-            throw new \RuntimeException('Position not found for roll: ' . $rollTotal);
-        }
-
-        $currentPlayer->setPosition($position);
-        $this->entityManager->persist($currentPlayer);
-
-        $game->setTurn(((int) ($game->getTurn() ?? 1)) + 1);
-        $this->entityManager->persist($game);
-        $this->entityManager->flush();
-
-        $nextPlayer = $this->getCurrentPlayer($game);
-
-        return [
-            'player' => $currentPlayer,
-            'dice' => [
-                'd4' => $d4,
-                'd6' => $d6,
-            ],
-            'position' => $position,
-            'turn' => $game->getTurn(),
-            'nextPlayer' => $nextPlayer,
-        ];
-    }
-
     public function initializeGame(int $gameId, array $playerIds): void {
 
         $reparition = [
@@ -306,6 +248,8 @@ class GameService {
         $this->reshuffleDeck($gameId);
 
         $game->setTurn(1);
+        $game->setTurnPhase(TurnPhase::ROLL);
+        $game->setCurrentTurnRoll(null);
         $this->entityManager->persist($game);
         $this->entityManager->flush();
     }

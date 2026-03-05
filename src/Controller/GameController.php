@@ -19,6 +19,7 @@ use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use App\Service\GameService;
+use App\Service\TurnService;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 
@@ -201,73 +202,224 @@ final class GameController extends AbstractController
         GameRepository $gameRepository,
         PlayerRepository $playerRepository,
         GameService $gameService,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        return $this->json([
+            'error' => 'Deprecated endpoint. Use phased turn endpoints: /turn/roll, /turn/move, /turn/place-ability, /turn/attack, /turn/end.',
+        ], Response::HTTP_GONE);
+    }
+
+    #[Route('/{gameId}/turn/roll', name: 'app_game_turn_roll', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function rollTurn(
+        int $gameId,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        TurnService $turnService,
         HubInterface $hub,
         #[CurrentUser] $user,
     ): JsonResponse
     {
-        $game = $gameRepository->find($gameId);
-
-        if (!$game) {
-            return $this->json(
-                ['error' => 'Game not found'],
-                Response::HTTP_NOT_FOUND
-            );
-        }
-
-        $activePlayer = $playerRepository->findActivePlayerByUser($user);
-        if (!$activePlayer || $activePlayer->getGame()->getId() !== $gameId) {
-            return $this->json(
-                ['error' => 'User is not part of this game'],
-                Response::HTTP_FORBIDDEN
-            );
-        }
-
-        $currentPlayer = $gameService->getCurrentPlayer($game);
-        if (!$currentPlayer || $currentPlayer->getId() !== $activePlayer->getId()) {
-            return $this->json(
-                ['error' => 'It is not your turn'],
-                Response::HTTP_FORBIDDEN
-            );
+        [$game, $activePlayer, $authError] = $this->authorizeTurnAction($gameId, $gameRepository, $playerRepository, $turnService, $user);
+        if ($authError !== null) {
+            return $authError;
         }
 
         try {
-            $result = $gameService->playCurrentTurn($game);
+            $result = $turnService->rollCurrentTurn($game);
         } catch (\Exception $e) {
-            return $this->json(
-                ['error' => $e->getMessage()],
-                Response::HTTP_CONFLICT
-            );
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
         }
 
-        $update = new Update(
+        $hub->publish(new Update(
             topics: ["game/{$gameId}"],
             data: json_encode([
-                'type' => 'turn_played',
+                'type' => 'turn_roll',
                 'gameId' => $gameId,
-                'playerId' => $result['player']->getId(),
+                'playerId' => $activePlayer->getId(),
                 'dice' => $result['dice'],
-                'position' => [
-                    'id' => $result['position']->getId(),
-                    'number' => $result['position']->getNumber(),
-                ],
-                'turn' => $result['turn'],
-                'nextPlayerId' => $result['nextPlayer']?->getId(),
+                'rollTotal' => $result['rollTotal'],
+                'requiresPositionChoice' => $result['requiresPositionChoice'],
+                'positionId' => $result['position']?->getId(),
+                'turnPhase' => $result['turnPhase'],
             ])
-        );
-
-        $hub->publish($update);
+        ));
 
         return $this->json([
-            'message' => 'Turn played successfully',
+            'message' => 'Dice rolled successfully',
             'gameId' => $gameId,
-            'playerId' => $result['player']->getId(),
+            'playerId' => $activePlayer->getId(),
             'dice' => $result['dice'],
+            'rollTotal' => $result['rollTotal'],
+            'requiresPositionChoice' => $result['requiresPositionChoice'],
+            'position' => $result['position'] ? [
+                'id' => $result['position']->getId(),
+                'number' => $result['position']->getNumber(),
+            ] : null,
+            'turnPhase' => $result['turnPhase'],
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/{gameId}/turn/move', name: 'app_game_turn_move', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function moveTurn(
+        int $gameId,
+        Request $request,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        TurnService $turnService,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        [$game, $activePlayer, $authError] = $this->authorizeTurnAction($gameId, $gameRepository, $playerRepository, $turnService, $user);
+        if ($authError !== null) {
+            return $authError;
+        }
+
+        $payload = json_decode($request->getContent(), true) ?? [];
+        $positionNumber = isset($payload['positionNumber']) ? (int) $payload['positionNumber'] : null;
+
+        try {
+            $result = $turnService->moveCurrentPlayer($game, $positionNumber);
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
+
+        return $this->json([
+            'message' => 'Player moved successfully',
+            'gameId' => $gameId,
+            'playerId' => $activePlayer->getId(),
             'position' => [
                 'id' => $result['position']->getId(),
                 'number' => $result['position']->getNumber(),
             ],
+            'turnPhase' => $result['turnPhase'],
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/{gameId}/turn/place-ability', name: 'app_game_turn_place_ability', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function placeAbilityTurn(
+        int $gameId,
+        Request $request,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        TurnService $turnService,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        [$game, $activePlayer, $authError] = $this->authorizeTurnAction($gameId, $gameRepository, $playerRepository, $turnService, $user);
+        if ($authError !== null) {
+            return $authError;
+        }
+
+        $payload = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $result = $turnService->useCurrentPlaceAbility($game, $payload);
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
+
+        return $this->json([
+            'message' => 'Place ability resolved successfully',
+            'gameId' => $gameId,
+            'playerId' => $activePlayer->getId(),
+            'position' => [
+                'id' => $result['position']->getId(),
+                'number' => $result['position']->getNumber(),
+            ],
+            'place' => [
+                'id' => $result['place']->getId(),
+                'name' => $result['place']->getName(),
+            ],
+            'effect' => $result['effect'],
+            'turnPhase' => $result['turnPhase'],
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/{gameId}/turn/attack', name: 'app_game_turn_attack', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function attackTurn(
+        int $gameId,
+        Request $request,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        TurnService $turnService,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        [$game, $activePlayer, $authError] = $this->authorizeTurnAction($gameId, $gameRepository, $playerRepository, $turnService, $user);
+        if ($authError !== null) {
+            return $authError;
+        }
+
+        $payload = json_decode($request->getContent(), true) ?? [];
+        $targetPlayerId = isset($payload['targetPlayerId']) ? (int) $payload['targetPlayerId'] : null;
+
+        try {
+            $result = $turnService->attackCurrentPlayer($game, $targetPlayerId);
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
+
+        return $this->json([
+            'message' => $result['skipped'] ?? false ? 'Attack skipped' : 'Attack resolved successfully',
+            'gameId' => $gameId,
+            'playerId' => $activePlayer->getId(),
+            'attack' => ($result['skipped'] ?? false) ? null : [
+                'targetPlayerId' => $result['target']->getId(),
+                'dice' => $result['dice'],
+                'damage' => $result['damage'],
+                'damageBefore' => $result['damageBefore'],
+                'damageAfter' => $result['damageAfter'],
+            ],
+            'turnPhase' => $result['turnPhase'],
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/{gameId}/turn/end', name: 'app_game_turn_end', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function endTurn(
+        int $gameId,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        TurnService $turnService,
+        HubInterface $hub,
+        #[CurrentUser] $user,
+    ): JsonResponse
+    {
+        [$game, $activePlayer, $authError] = $this->authorizeTurnAction($gameId, $gameRepository, $playerRepository, $turnService, $user);
+        if ($authError !== null) {
+            return $authError;
+        }
+
+        try {
+            $result = $turnService->endCurrentTurn($game);
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
+
+        $hub->publish(new Update(
+            topics: ["game/{$gameId}"],
+            data: json_encode([
+                'type' => 'turn_ended',
+                'gameId' => $gameId,
+                'playerId' => $activePlayer->getId(),
+                'turn' => $result['turn'],
+                'nextPlayerId' => $result['nextPlayer']?->getId(),
+                'turnPhase' => $result['turnPhase'],
+            ])
+        ));
+
+        return $this->json([
+            'message' => 'Turn ended successfully',
+            'gameId' => $gameId,
+            'playerId' => $activePlayer->getId(),
             'turn' => $result['turn'],
             'nextPlayerId' => $result['nextPlayer']?->getId(),
+            'turnPhase' => $result['turnPhase'],
         ], Response::HTTP_OK);
     }
 
@@ -383,6 +535,8 @@ final class GameController extends AbstractController
             'gameId' => $game->getId(),
             'gameStatus' => $game->getStatus()->value,
             'turn' => $turnCount,
+            'turnPhase' => $game->getTurnPhase()?->value,
+            'currentTurnRoll' => $game->getCurrentTurnRoll(),
             'currentPlayerId' => $currentPlayerId,
             'positions' => $formattedPositions,
             'players' => $formattedPlayers,
@@ -409,6 +563,32 @@ final class GameController extends AbstractController
             'games' => $formattedGames,
             'total' => count($formattedGames),
         ], Response::HTTP_OK);
+    }
+
+    private function authorizeTurnAction(
+        int $gameId,
+        GameRepository $gameRepository,
+        PlayerRepository $playerRepository,
+        TurnService $turnService,
+        mixed $user,
+    ): array
+    {
+        $game = $gameRepository->find($gameId);
+        if (!$game) {
+            return [null, null, $this->json(['error' => 'Game not found'], Response::HTTP_NOT_FOUND)];
+        }
+
+        $activePlayer = $playerRepository->findActivePlayerByUser($user);
+        if (!$activePlayer || $activePlayer->getGame()->getId() !== $gameId) {
+            return [null, null, $this->json(['error' => 'User is not part of this game'], Response::HTTP_FORBIDDEN)];
+        }
+
+        $currentPlayer = $turnService->getCurrentPlayer($game);
+        if (!$currentPlayer || $currentPlayer->getId() !== $activePlayer->getId()) {
+            return [null, null, $this->json(['error' => 'It is not your turn'], Response::HTTP_FORBIDDEN)];
+        }
+
+        return [$game, $activePlayer, null];
     }
 
     

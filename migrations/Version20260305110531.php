@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated Migration: Please modify to your needs!
  */
-final class Version20260218140336 extends AbstractMigration
+final class Version20260305110531 extends AbstractMigration
 {
     public function getDescription(): string
     {
@@ -24,7 +24,7 @@ final class Version20260218140336 extends AbstractMigration
         $this->addSql('CREATE TABLE action_card (type VARCHAR(255) NOT NULL, count SMALLINT NOT NULL, id INT NOT NULL, PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
         $this->addSql('CREATE TABLE character_card (type VARCHAR(255) NOT NULL, max_damage SMALLINT NOT NULL, initial VARCHAR(1) NOT NULL, id INT NOT NULL, PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
         $this->addSql('CREATE TABLE clue (id INT AUTO_INCREMENT NOT NULL, resolution TINYINT DEFAULT NULL, sender_id INT NOT NULL, receiver_id INT NOT NULL, card_id INT NOT NULL, INDEX IDX_268AADD1F624B39D (sender_id), INDEX IDX_268AADD1CD53EDB6 (receiver_id), INDEX IDX_268AADD14ACC9A20 (card_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
-        $this->addSql('CREATE TABLE game (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(255) NOT NULL, status VARCHAR(255) NOT NULL, turn INT NOT NULL, owner_id INT NOT NULL, INDEX IDX_232B318C7E3C61F9 (owner_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
+        $this->addSql('CREATE TABLE game (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(255) NOT NULL, status VARCHAR(255) NOT NULL, turn INT NOT NULL, turn_phase VARCHAR(64) NOT NULL, current_turn_roll SMALLINT DEFAULT NULL, owner_id INT NOT NULL, INDEX IDX_232B318C7E3C61F9 (owner_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
         $this->addSql('CREATE TABLE location (id INT AUTO_INCREMENT NOT NULL, location VARCHAR(255) NOT NULL, position SMALLINT DEFAULT NULL, game_id INT NOT NULL, action_card_id INT NOT NULL, player_id INT DEFAULT NULL, INDEX IDX_5E9E89CBE48FD905 (game_id), INDEX IDX_5E9E89CB906E12C1 (action_card_id), INDEX IDX_5E9E89CB99E6F5DF (player_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
         $this->addSql('CREATE TABLE message (id INT AUTO_INCREMENT NOT NULL, message VARCHAR(255) NOT NULL, timestamp DATETIME NOT NULL, card_id INT DEFAULT NULL, game_id INT NOT NULL, sender_id INT DEFAULT NULL, INDEX IDX_B6BD307F4ACC9A20 (card_id), INDEX IDX_B6BD307FE48FD905 (game_id), INDEX IDX_B6BD307FF624B39D (sender_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
         $this->addSql('CREATE TABLE place_card (roll JSON DEFAULT NULL, id INT NOT NULL, PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');

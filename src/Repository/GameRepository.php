@@ -6,6 +6,7 @@ use App\Entity\Game;
 use App\Entity\Player;
 use App\Entity\User;
 use App\Enum\GameStatus;
+use App\Enum\TurnPhase;
 use App\Enum\Colors;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -26,6 +27,8 @@ class GameRepository extends ServiceEntityRepository
         $game->setName($name);
         $game->setStatus(GameStatus::PENDING);
         $game->setTurn(0);
+        $game->setTurnPhase(TurnPhase::ROLL);
+        $game->setCurrentTurnRoll(null);
         $game->setOwner($owner);
 
         return $game;
