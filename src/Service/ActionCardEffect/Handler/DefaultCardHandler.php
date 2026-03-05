@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Service\CardEffect\Handler;
+namespace App\Service\ActionCardEffect\Handler;
 
-use App\Service\CardEffect\CardEffectHandlerInterface;
-use App\Service\CardEffect\CardEffectResult;
+use App\Service\ActionCardEffect\ActionCardEffectHandlerInterface;
+use App\Service\ActionCardEffect\ActionCardEffectResult;
 use App\Entity\ActionCard;
 use App\Entity\Player;
 use App\Entity\Game;
@@ -13,24 +13,23 @@ use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
  * Default handler for cards without specific implementation
  * This should be registered last (lowest priority) in the service container
  */
-#[AutoconfigureTag('app.card_effect_handler', ['priority' => -100])]
-class DefaultCardHandler implements CardEffectHandlerInterface
+#[AutoconfigureTag('app.action_card_effect_handler', ['priority' => -100])]
+class DefaultCardHandler implements ActionCardEffectHandlerInterface
 {
     public function supports(ActionCard $card): bool
     {
-        // Supports all cards (fallback)
         return true;
     }
-    
+
     public function getRequiredContext(): array
     {
         return [];
     }
-    
-    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): CardEffectResult
+
+    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): ActionCardEffectResult
     {
-        return CardEffectResult::success(
-            sprintf('Card "%s" played by %s (not yet implemented)', 
+        return ActionCardEffectResult::success(
+            sprintf('Card "%s" played by %s (not yet implemented)',
                 $card->getName(),
                 $player->getUser()->getUsername()
             ),

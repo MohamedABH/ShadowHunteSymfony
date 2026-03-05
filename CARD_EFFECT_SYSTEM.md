@@ -8,9 +8,9 @@ The card effect system uses the **Strategy Pattern** to handle different action 
 
 ### Core Components
 
-1. **CardEffectHandlerInterface**: Contract for all card handlers
-2. **CardEffectResult**: Encapsulates the result of a card effect
-3. **CardEffectService**: Orchestrates handler selection and execution
+1. **ActionCardEffectHandlerInterface**: Contract for all card handlers
+2. **ActionCardEffectResult**: Encapsulates the result of a card effect
+3. **ActionCardEffectService**: Orchestrates handler selection and execution
 4. **Handler Classes**: Individual implementations for each card
 
 ## How It Works
@@ -19,14 +19,14 @@ The card effect system uses the **Strategy Pattern** to handle different action 
 
 ```php
 <?php
-namespace App\Service\CardEffect\Handler;
+namespace App\Service\ActionCardEffect\Handler;
 
-use App\Service\CardEffect\CardEffectHandlerInterface;
-use App\Service\CardEffect\CardEffectResult;
+use App\Service\ActionCardEffect\ActionCardEffectHandlerInterface;
+use App\Service\ActionCardEffect\ActionCardEffectResult;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 
-#[AutoconfigureTag('app.card_effect_handler')]
-class MyCardHandler implements CardEffectHandlerInterface
+#[AutoconfigureTag('app.action_card_effect_handler')]
+class MyCardHandler implements ActionCardEffectHandlerInterface
 {
     public function supports(ActionCard $card): bool
     {
@@ -38,10 +38,10 @@ class MyCardHandler implements CardEffectHandlerInterface
         return ['targetPlayerId', 'diceRoll']; // What info is needed
     }
     
-    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): CardEffectResult
+    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): ActionCardEffectResult
     {
         // Implement card logic here
-        return CardEffectResult::success('Card played successfully', ['changes' => 'data']);
+        return ActionCardEffectResult::success('Card played successfully', ['changes' => 'data']);
     }
 }
 ```
@@ -50,7 +50,7 @@ class MyCardHandler implements CardEffectHandlerInterface
 
 **Simple Success:**
 ```php
-return CardEffectResult::success('Healed 2 damage', [
+return ActionCardEffectResult::success('Healed 2 damage', [
     'player_id' => $player->getId(),
     'damage_after' => $newDamage
 ]);
@@ -58,12 +58,12 @@ return CardEffectResult::success('Healed 2 damage', [
 
 **Failure:**
 ```php
-return CardEffectResult::failure('Target player not found');
+return ActionCardEffectResult::failure('Target player not found');
 ```
 
 **Requires Additional Action:**
 ```php
-return CardEffectResult::requiresAction(
+return ActionCardEffectResult::requiresAction(
     'Player must choose an option',
     ['required' => ['playerChoice'], 'choices' => ['option1', 'option2']]
 );
@@ -118,7 +118,7 @@ For cards requiring player interaction (like "Vision furtive"):
 
 ## Adding New Cards
 
-1. Create handler class in `src/Service/CardEffect/Handler/`
-2. Add `#[AutoconfigureTag('app.card_effect_handler')]` attribute
+1. Create handler class in `src/Service/ActionCardEffect/Handler/`
+2. Add `#[AutoconfigureTag('app.action_card_effect_handler')]` attribute
 3. Implement `supports()`, `getRequiredContext()`, and `execute()`
 4. No service configuration needed (auto-discovered)
