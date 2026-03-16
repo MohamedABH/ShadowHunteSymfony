@@ -33,6 +33,17 @@ class PlayerRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    public function findOneByGameAndId(Game $game, int $playerId): ?Player
+    {
+        return $this->createQueryBuilder('p')
+            ->andWhere('p.game = :game')
+            ->andWhere('p.id = :playerId')
+            ->setParameter('game', $game)
+            ->setParameter('playerId', $playerId)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     /**
      * Create a new Player instance attached to a User and Game.
      * Does not persist the entity; caller should persist/flush.

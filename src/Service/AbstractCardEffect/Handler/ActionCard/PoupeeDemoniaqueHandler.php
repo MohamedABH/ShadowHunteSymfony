@@ -1,12 +1,14 @@
 <?php
 
-namespace App\Service\ActionCardEffect\Handler;
+namespace App\Service\AbstractCardEffect\Handler\ActionCard;
 
-use App\Service\ActionCardEffect\ActionCardEffectHandlerInterface;
-use App\Service\ActionCardEffect\ActionCardEffectResult;
+use App\Service\AbstractCardEffect\AbstractCardEffectHandlerInterface;
+use App\Service\AbstractCardEffect\AbstractCardEffectResult;
+use App\Entity\AbstractCard;
 use App\Entity\ActionCard;
 use App\Entity\Player;
 use App\Entity\Game;
+use App\Service\DamageService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 
@@ -14,17 +16,18 @@ use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
  * Handler for "Poupée démoniaque" card
  * Effect: Target a player, roll d6. 1-4: deal 3 damage. 5-6: take 3 damage yourself
  */
-#[AutoconfigureTag('app.action_card_effect_handler')]
-class PoupeeDemoniaqueHandler implements ActionCardEffectHandlerInterface
+#[AutoconfigureTag('app.abstract_card_effect_handler')]
+class PoupeeDemoniaqueHandler implements AbstractCardEffectHandlerInterface
 {
     public function __construct(
+        private readonly DamageService $damageService,
         private readonly EntityManagerInterface $entityManager
     ) {
     }
 
-    public function supports(ActionCard $card): bool
+    public function supports(AbstractCard $card): bool
     {
-        return $card->getName() === 'Poupée démoniaque';
+        return $card instanceof ActionCard && $card->getName() === 'Poupée démoniaque';
     }
 
     public function getRequiredContext(): array
@@ -32,13 +35,17 @@ class PoupeeDemoniaqueHandler implements ActionCardEffectHandlerInterface
         return ['targetPlayerId', 'diceRoll'];
     }
 
-    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): ActionCardEffectResult
+    public function execute(AbstractCard $card, Player $player, Game $game, array $context = []): AbstractCardEffectResult
     {
+        if (!$card instanceof ActionCard) {
+            return AbstractCardEffectResult::failure('Unsupported card type for PoupeeDemoniaqueHandler');
+        }
+
         $targetPlayerId = $context['targetPlayerId'];
         $diceRoll = $context['diceRoll'];
 
         if ($diceRoll < 1 || $diceRoll > 6) {
-            return ActionCardEffectResult::failure('Invalid dice roll. Must be between 1 and 6.');
+            return AbstractCardEffectResult::failure('Invalid dice roll. Must be between 1 and 6.');
         }
 
         $targetPlayer = null;
@@ -50,19 +57,19 @@ class PoupeeDemoniaqueHandler implements ActionCardEffectHandlerInterface
         }
 
         if (!$targetPlayer) {
-            return ActionCardEffectResult::failure('Target player not found');
+            return AbstractCardEffectResult::failure('Target player not found');
         }
 
         if ($diceRoll >= 1 && $diceRoll <= 4) {
-            $maxDamage = $targetPlayer->getCharacterCard()?->getMaxDamage() ?? 14;
-            $damageBefore = $targetPlayer->getCurrentDamage();
-            $damageAfter = min($maxDamage, $damageBefore + 3);
-            $targetPlayer->setCurrentDamage($damageAfter);
+            $damageResult = $this->damageService->applyDamage($targetPlayer, 3);
+            $damageBefore = $damageResult['before'];
+            $damageAfter = $damageResult['after'];
+            $targetKnockedOut = $this->damageService->enforceKnockout($targetPlayer);
 
             $this->entityManager->persist($targetPlayer);
             $this->entityManager->flush();
 
-            return ActionCardEffectResult::success(
+            return AbstractCardEffectResult::success(
                 sprintf('%s rolled %d and dealt 3 damage to %s',
                     $player->getUser()->getUsername(),
                     $diceRoll,
@@ -73,20 +80,21 @@ class PoupeeDemoniaqueHandler implements ActionCardEffectHandlerInterface
                     'outcome' => 'target_damaged',
                     'target_player_id' => $targetPlayer->getId(),
                     'damage_before' => $damageBefore,
-                    'damage_after' => $damageAfter
+                    'damage_after' => $damageAfter,
+                    'target_knocked_out' => $targetKnockedOut,
                 ]
             );
         }
 
-        $maxDamage = $player->getCharacterCard()?->getMaxDamage() ?? 14;
-        $damageBefore = $player->getCurrentDamage();
-        $damageAfter = min($maxDamage, $damageBefore + 3);
-        $player->setCurrentDamage($damageAfter);
+        $damageResult = $this->damageService->applyDamage($player, 3);
+        $damageBefore = $damageResult['before'];
+        $damageAfter = $damageResult['after'];
+        $selfKnockedOut = $this->damageService->enforceKnockout($player);
 
         $this->entityManager->persist($player);
         $this->entityManager->flush();
 
-        return ActionCardEffectResult::success(
+        return AbstractCardEffectResult::success(
             sprintf('%s rolled %d and took 3 damage themselves!',
                 $player->getUser()->getUsername(),
                 $diceRoll
@@ -96,7 +104,8 @@ class PoupeeDemoniaqueHandler implements ActionCardEffectHandlerInterface
                 'outcome' => 'self_damaged',
                 'player_id' => $player->getId(),
                 'damage_before' => $damageBefore,
-                'damage_after' => $damageAfter
+                'damage_after' => $damageAfter,
+                'self_knocked_out' => $selfKnockedOut,
             ]
         );
     }

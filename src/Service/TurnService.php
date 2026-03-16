@@ -3,21 +3,21 @@
 namespace App\Service;
 
 use App\Entity\Game;
-use App\Entity\Location;
 use App\Entity\Player;
-use App\Enum\LocationEnum;
 use App\Enum\TurnPhase;
-use App\Repository\LocationRepository;
+use App\Repository\PlayerRepository;
 use App\Repository\PositionRepository;
+use App\Service\AbstractCardEffect\AbstractCardEffectService;
 use Doctrine\ORM\EntityManagerInterface;
 
 class TurnService
 {
     public function __construct(
         private readonly PositionRepository $positionRepository,
-        private readonly LocationRepository $locationRepository,
+        private readonly PlayerRepository $playerRepository,
+        private readonly AbstractCardEffectService $abstractCardEffectService,
+        private readonly DamageService $damageService,
         private readonly EntityManagerInterface $entityManager,
-        private readonly GameService $gameService,
     ) {
     }
 
@@ -138,125 +138,23 @@ class TurnService
         }
 
         $placeCard = $position->getPlaceCard();
-        $placeName = $placeCard->getName();
-        $effectResult = ['place' => $placeName];
-
-        switch ($placeName) {
-            case 'Antre de l\'ermite':
-                $drawn = $this->drawCardFromDeck($game, $currentPlayer, LocationEnum::SIGHT_DECK);
-                $effectResult['drawnCardId'] = $drawn?->getActionCard()?->getId();
-                break;
-
-            case 'Porte de l\'Outremonde':
-                $deckType = $context['deckType'] ?? null;
-                if (!in_array($deckType, ['dark', 'light', 'sight'], true)) {
-                    throw new \InvalidArgumentException('deckType is required and must be dark, light, or sight.');
-                }
-
-                $deck = match ($deckType) {
-                    'dark' => LocationEnum::DARK_DECK,
-                    'light' => LocationEnum::LIGHT_DECK,
-                    default => LocationEnum::SIGHT_DECK,
-                };
-                $drawn = $this->drawCardFromDeck($game, $currentPlayer, $deck);
-                $effectResult['deckType'] = $deckType;
-                $effectResult['drawnCardId'] = $drawn?->getActionCard()?->getId();
-                break;
-
-            case 'Monastère':
-                $drawn = $this->drawCardFromDeck($game, $currentPlayer, LocationEnum::LIGHT_DECK);
-                $effectResult['drawnCardId'] = $drawn?->getActionCard()?->getId();
-                break;
-
-            case 'Cimetière':
-                $drawn = $this->drawCardFromDeck($game, $currentPlayer, LocationEnum::DARK_DECK);
-                $effectResult['drawnCardId'] = $drawn?->getActionCard()?->getId();
-                break;
-
-            case 'Forêt hantée':
-                $targetPlayerId = isset($context['targetPlayerId']) ? (int) $context['targetPlayerId'] : null;
-                $outcome = $context['outcome'] ?? null;
-
-                if (!$targetPlayerId || !in_array($outcome, ['damage', 'heal'], true)) {
-                    throw new \InvalidArgumentException('Forêt hantée requires targetPlayerId and outcome (damage|heal).');
-                }
-
-                $targetPlayer = $this->findPlayerInGame($game, $targetPlayerId);
-                if (!$targetPlayer) {
-                    throw new \InvalidArgumentException('Target player not found in this game.');
-                }
-
-                $before = $targetPlayer->getCurrentDamage() ?? 0;
-                if ($outcome === 'damage') {
-                    $maxDamage = $targetPlayer->getCharacterCard()?->getMaxDamage() ?? 14;
-                    $after = min($maxDamage, $before + 2);
-                } else {
-                    $after = max(0, $before - 1);
-                }
-
-                $targetPlayer->setCurrentDamage($after);
-                $this->entityManager->persist($targetPlayer);
-
-                $effectResult['targetPlayerId'] = $targetPlayer->getId();
-                $effectResult['outcome'] = $outcome;
-                $effectResult['damageBefore'] = $before;
-                $effectResult['damageAfter'] = $after;
-                break;
-
-            case 'Sanctuaire ancien':
-                $targetPlayerId = isset($context['targetPlayerId']) ? (int) $context['targetPlayerId'] : null;
-                if (!$targetPlayerId) {
-                    throw new \InvalidArgumentException('Sanctuaire ancien requires targetPlayerId.');
-                }
-
-                $targetPlayer = $this->findPlayerInGame($game, $targetPlayerId);
-                if (!$targetPlayer || $targetPlayer->getId() === $currentPlayer->getId()) {
-                    throw new \InvalidArgumentException('Invalid target player for Sanctuaire ancien.');
-                }
-
-                $equipments = array_values(array_filter(
-                    $targetPlayer->getCards()->toArray(),
-                    fn (Location $location) => $location->getLocation() === LocationEnum::IN_PLAY
-                ));
-
-                if (count($equipments) === 0) {
-                    $effectResult['targetPlayerId'] = $targetPlayer->getId();
-                    $effectResult['stolenCardId'] = null;
-                    break;
-                }
-
-                $selectedLocation = null;
-                $targetLocationId = isset($context['targetLocationId']) ? (int) $context['targetLocationId'] : null;
-                if ($targetLocationId) {
-                    foreach ($equipments as $equipment) {
-                        if ($equipment->getId() === $targetLocationId) {
-                            $selectedLocation = $equipment;
-                            break;
-                        }
-                    }
-                    if (!$selectedLocation) {
-                        throw new \InvalidArgumentException('targetLocationId is not a valid equipment for the target player.');
-                    }
-                } elseif (count($equipments) === 1) {
-                    $selectedLocation = $equipments[0];
-                } else {
-                    throw new \InvalidArgumentException('targetLocationId is required when target player has multiple equipments.');
-                }
-
-                $selectedLocation->setPlayer($currentPlayer);
-                $selectedLocation->setLocation(LocationEnum::IN_PLAY);
-                $this->entityManager->persist($selectedLocation);
-
-                $effectResult['targetPlayerId'] = $targetPlayer->getId();
-                $effectResult['stolenCardId'] = $selectedLocation->getActionCard()?->getId();
-                break;
-
-            default:
-                $effectResult['message'] = 'No implemented effect for this place.';
-                break;
+        $effectExecution = $this->abstractCardEffectService->executeCardEffect($placeCard, $currentPlayer, $game, $context);
+        if (!$effectExecution->isSuccess()) {
+            throw new \RuntimeException($effectExecution->getMessage());
         }
 
-        $game->setTurnPhase(TurnPhase::ATTACK);
+        $effectResult = [
+            'message' => $effectExecution->getMessage(),
+            'changes' => $effectExecution->getChanges(),
+            'pendingActions' => $effectExecution->getPendingActions(),
+        ];
+
+        if ($effectExecution->hasPendingActions()) {
+            $game->setTurnPhase(TurnPhase::PLACE_ABILITY);
+        } else {
+            $game->setTurnPhase(TurnPhase::ATTACK);
+        }
+
         $this->entityManager->persist($game);
         $this->entityManager->flush();
 
@@ -291,7 +189,7 @@ class TurnService
             ];
         }
 
-        $targetPlayer = $this->findPlayerInGame($game, $targetPlayerId);
+        $targetPlayer = $this->playerRepository->findOneByGameAndId($game, $targetPlayerId);
         if (!$targetPlayer || $targetPlayer->getId() === $currentPlayer->getId()) {
             throw new \InvalidArgumentException('Invalid target player for attack.');
         }
@@ -300,10 +198,10 @@ class TurnService
         $d6 = random_int(1, 6);
         $damage = $d4 + $d6;
 
-        $before = $targetPlayer->getCurrentDamage() ?? 0;
-        $maxDamage = $targetPlayer->getCharacterCard()?->getMaxDamage() ?? 14;
-        $after = min($maxDamage, $before + $damage);
-        $targetPlayer->setCurrentDamage($after);
+        $damageResult = $this->damageService->applyDamage($targetPlayer, $damage);
+        $before = $damageResult['before'];
+        $after = $damageResult['after'];
+        $targetKnockedOut = $this->damageService->enforceKnockout($targetPlayer);
 
         $game->setTurnPhase(TurnPhase::END);
 
@@ -321,6 +219,7 @@ class TurnService
             'damage' => $damage,
             'damageBefore' => $before,
             'damageAfter' => $after,
+            'targetKnockedOut' => $targetKnockedOut,
             'turnPhase' => $game->getTurnPhase()?->value,
         ];
     }
@@ -350,54 +249,6 @@ class TurnService
             'nextPlayer' => $nextPlayer,
             'turnPhase' => $game->getTurnPhase()?->value,
         ];
-    }
-
-    private function drawCardFromDeck(Game $game, Player $player, LocationEnum $deckLocation): ?Location
-    {
-        $cardLocation = $this->locationRepository->createQueryBuilder('l')
-            ->andWhere('l.game = :game')
-            ->andWhere('l.location = :deck')
-            ->setParameter('game', $game)
-            ->setParameter('deck', $deckLocation)
-            ->orderBy('l.position', 'ASC')
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if (!$cardLocation) {
-            $this->gameService->reshuffleDeck($game->getId());
-            $cardLocation = $this->locationRepository->createQueryBuilder('l')
-                ->andWhere('l.game = :game')
-                ->andWhere('l.location = :deck')
-                ->setParameter('game', $game)
-                ->setParameter('deck', $deckLocation)
-                ->orderBy('l.position', 'ASC')
-                ->setMaxResults(1)
-                ->getQuery()
-                ->getOneOrNullResult();
-        }
-
-        if (!$cardLocation) {
-            return null;
-        }
-
-        $cardLocation->setLocation(LocationEnum::IN_PLAY);
-        $cardLocation->setPlayer($player);
-        $cardLocation->setPosition(null);
-        $this->entityManager->persist($cardLocation);
-
-        return $cardLocation;
-    }
-
-    private function findPlayerInGame(Game $game, int $playerId): ?Player
-    {
-        foreach ($game->getPlayers() as $player) {
-            if ($player->getId() === $playerId) {
-                return $player;
-            }
-        }
-
-        return null;
     }
 
     private function assertGameOngoing(Game $game): void

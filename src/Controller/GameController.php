@@ -374,6 +374,7 @@ final class GameController extends AbstractController
                 'damage' => $result['damage'],
                 'damageBefore' => $result['damageBefore'],
                 'damageAfter' => $result['damageAfter'],
+                'targetKnockedOut' => $result['targetKnockedOut'] ?? false,
             ],
             'turnPhase' => $result['turnPhase'],
         ], Response::HTTP_OK);

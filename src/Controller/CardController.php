@@ -4,7 +4,7 @@ namespace App\Controller;
 
 use App\Entity\ActionCard;
 use App\Entity\Player;
-use App\Service\ActionCardEffect\ActionCardEffectService;
+use App\Service\AbstractCardEffect\AbstractCardEffectService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,7 +28,7 @@ final class CardController extends AbstractController
         #[CurrentUser] $user,
         ActionCardRepository $cardRepository,
         PlayerRepository $playerRepository,
-        ActionCardEffectService $actionCardEffectService,
+        AbstractCardEffectService $abstractCardEffectService,
         EntityManagerInterface $entityManager
     ): JsonResponse
     {
@@ -50,11 +50,11 @@ final class CardController extends AbstractController
         $context = json_decode($request->getContent(), true) ?? [];
         
         // Get required context to inform the client what's needed
-        $requiredContext = $actionCardEffectService->getRequiredContext($card);
+        $requiredContext = $abstractCardEffectService->getRequiredContext($card);
         
         try {
             // Execute the card effect
-            $result = $actionCardEffectService->executeCardEffect($card, $player, $game, $context);
+            $result = $abstractCardEffectService->executeCardEffect($card, $player, $game, $context);
             
             if ($result->hasPendingActions()) {
                 // Need more information from the client

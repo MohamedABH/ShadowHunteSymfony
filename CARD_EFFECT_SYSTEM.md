@@ -2,123 +2,112 @@
 
 ## Overview
 
-The card effect system uses the **Strategy Pattern** to handle different action card effects. Each card has its own handler class that implements the card's specific logic.
+The card effect system uses the **Strategy Pattern** with one shared execution service for all cards extending `AbstractCard`.
 
-## Architecture
+## Current Architecture
 
 ### Core Components
 
-1. **ActionCardEffectHandlerInterface**: Contract for all card handlers
-2. **ActionCardEffectResult**: Encapsulates the result of a card effect
-3. **ActionCardEffectService**: Orchestrates handler selection and execution
-4. **Handler Classes**: Individual implementations for each card
+1. **AbstractCardEffectHandlerInterface** (`src/Service/AbstractCardEffect/AbstractCardEffectHandlerInterface.php`)
+2. **AbstractCardEffectResult** (`src/Service/AbstractCardEffect/AbstractCardEffectResult.php`)
+3. **AbstractCardEffectService** (`src/Service/AbstractCardEffect/AbstractCardEffectService.php`)
+4. **Handler classes** under:
+    - `src/Service/AbstractCardEffect/Handler/ActionCard/`
+    - `src/Service/AbstractCardEffect/Handler/PlaceCard/`
+    - `src/Service/AbstractCardEffect/Handler/CharacterCard/`
+
+### Handler Discovery
+
+All handlers are auto-registered with:
+
+```php
+#[AutoconfigureTag('app.abstract_card_effect_handler')]
+```
 
 ## How It Works
 
-### 1. Create a New Card Handler
+### 1. Create a New Handler
 
 ```php
 <?php
-namespace App\Service\ActionCardEffect\Handler;
+namespace App\Service\AbstractCardEffect\Handler\ActionCard;
 
-use App\Service\ActionCardEffect\ActionCardEffectHandlerInterface;
-use App\Service\ActionCardEffect\ActionCardEffectResult;
+use App\Entity\AbstractCard;
+use App\Entity\ActionCard;
+use App\Entity\Game;
+use App\Entity\Player;
+use App\Service\AbstractCardEffect\AbstractCardEffectHandlerInterface;
+use App\Service\AbstractCardEffect\AbstractCardEffectResult;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 
-#[AutoconfigureTag('app.action_card_effect_handler')]
-class MyCardHandler implements ActionCardEffectHandlerInterface
+#[AutoconfigureTag('app.abstract_card_effect_handler')]
+class MyActionCardHandler implements AbstractCardEffectHandlerInterface
 {
-    public function supports(ActionCard $card): bool
+    public function supports(AbstractCard $card): bool
     {
-        return $card->getName() === 'My Card Name';
+        return $card instanceof ActionCard && $card->getName() === 'My Card Name';
     }
-    
+
     public function getRequiredContext(): array
     {
-        return ['targetPlayerId', 'diceRoll']; // What info is needed
+        return ['targetPlayerId'];
     }
-    
-    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): ActionCardEffectResult
+
+    public function execute(AbstractCard $card, Player $player, Game $game, array $context = []): AbstractCardEffectResult
     {
-        // Implement card logic here
-        return ActionCardEffectResult::success('Card played successfully', ['changes' => 'data']);
+        if (!$card instanceof ActionCard) {
+            return AbstractCardEffectResult::failure('Unsupported card type');
+        }
+
+        return AbstractCardEffectResult::success('Card played successfully', ['changes' => 'data']);
     }
 }
 ```
 
-### 2. Handler Results
+### 2. Result Types
 
-**Simple Success:**
+**Success:**
+
 ```php
-return ActionCardEffectResult::success('Healed 2 damage', [
-    'player_id' => $player->getId(),
-    'damage_after' => $newDamage
-]);
+return AbstractCardEffectResult::success('Effect applied', ['player_id' => $player->getId()]);
 ```
 
 **Failure:**
+
 ```php
-return ActionCardEffectResult::failure('Target player not found');
+return AbstractCardEffectResult::failure('Target player not found');
 ```
 
-**Requires Additional Action:**
+**Pending action (extra input required):**
+
 ```php
-return ActionCardEffectResult::requiresAction(
-    'Player must choose an option',
-    ['required' => ['playerChoice'], 'choices' => ['option1', 'option2']]
+return AbstractCardEffectResult::requiresAction(
+    'Additional information required',
+    ['required' => ['targetChoice']]
 );
 ```
 
-### 3. Use in Controller/Service
+### 3. Service Usage
 
 ```php
-public function playCard(ActionCard $card, Player $player, array $context)
-{
-    $result = $this->cardEffectService->executeCardEffect($card, $player, $game, $context);
-    
-    if ($result->hasPendingActions()) {
-        // Return to client, asking for more info
-        return ['status' => 'pending', 'required' => $result->getPendingActions()];
-    }
-    
-    if ($result->isSuccess()) {
-        return ['status' => 'success', 'changes' => $result->getChanges()];
-    }
-}
+$result = $this->abstractCardEffectService->executeCardEffect($card, $player, $game, $context);
 ```
 
-## Example Handlers Implemented
+## Existing ActionCard Handlers
 
-1. **EauBeniteHandler**: Simple heal effect
-2. **ChauveSourisVampireHandler**: Damage target, heal self (requires target)
-3. **VisionFurtiveHandler**: Conditional effect with player choice
-4. **PoupeeDemoniaqueHandler**: Dice-based random outcome
-5. **DefaultCardHandler**: Fallback for unimplemented cards
+- `EauBeniteHandler`
+- `ChauveSourisVampireHandler`
+- `VisionFurtiveHandler`
+- `PoupeeDemoniaqueHandler`
+- `DefaultCardHandler`
 
-## Flow for Complex Cards
-
-For cards requiring player interaction (like "Vision furtive"):
-
-1. **First call**: Client provides `targetPlayerId`
-2. **Handler checks**: Is target Hunter/Shadow?
-3. **Returns**: `requiresAction` with choices `['give_equipment', 'take_damage']`
-4. **Client responds**: User selects choice
-5. **Second call**: Client provides `targetChoice`
-6. **Handler executes**: Based on choice
-7. **Returns**: `success` with changes
-
-## Benefits
-
-- **Type-safe**: Full IDE support and type checking
-- **Testable**: Each handler can be unit tested
-- **Extensible**: Add new handlers without modifying existing code
-- **Flexible**: Handles complex logic, conditionals, and multi-step interactions
-- **Maintainable**: Each card's logic is isolated
-- **Auto-discovery**: Uses Symfony's autoconfigure tags
+These are now located in `src/Service/AbstractCardEffect/Handler/ActionCard/`.
 
 ## Adding New Cards
 
-1. Create handler class in `src/Service/ActionCardEffect/Handler/`
-2. Add `#[AutoconfigureTag('app.action_card_effect_handler')]` attribute
+1. Create handler class in the correct folder:
+    - Action card: `src/Service/AbstractCardEffect/Handler/ActionCard/`
+    - Place card: `src/Service/AbstractCardEffect/Handler/PlaceCard/`
+2. Add `#[AutoconfigureTag('app.abstract_card_effect_handler')]`
 3. Implement `supports()`, `getRequiredContext()`, and `execute()`
-4. No service configuration needed (auto-discovered)
+4. No manual service registration required

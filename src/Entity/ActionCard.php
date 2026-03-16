@@ -16,6 +16,9 @@ class ActionCard extends AbstractCard
     #[ORM\Column(type: Types::SMALLINT)]
     private ?int $count = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isEquipment = false;
+
     public function getType(): ?ActionCardType
     {
         return $this->type;
@@ -36,6 +39,18 @@ class ActionCard extends AbstractCard
     public function setCount(int $count): static
     {
         $this->count = $count;
+
+        return $this;
+    }
+
+    public function isEquipment(): bool
+    {
+        return $this->isEquipment;
+    }
+
+    public function setIsEquipment(bool $isEquipment): static
+    {
+        $this->isEquipment = $isEquipment;
 
         return $this;
     }

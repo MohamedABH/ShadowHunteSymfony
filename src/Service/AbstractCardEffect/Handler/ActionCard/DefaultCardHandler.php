@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Service\ActionCardEffect\Handler;
+namespace App\Service\AbstractCardEffect\Handler\ActionCard;
 
-use App\Service\ActionCardEffect\ActionCardEffectHandlerInterface;
-use App\Service\ActionCardEffect\ActionCardEffectResult;
+use App\Service\AbstractCardEffect\AbstractCardEffectHandlerInterface;
+use App\Service\AbstractCardEffect\AbstractCardEffectResult;
+use App\Entity\AbstractCard;
 use App\Entity\ActionCard;
 use App\Entity\Player;
 use App\Entity\Game;
@@ -13,10 +14,10 @@ use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
  * Default handler for cards without specific implementation
  * This should be registered last (lowest priority) in the service container
  */
-#[AutoconfigureTag('app.action_card_effect_handler', ['priority' => -100])]
-class DefaultCardHandler implements ActionCardEffectHandlerInterface
+#[AutoconfigureTag('app.abstract_card_effect_handler', ['priority' => -100])]
+class DefaultCardHandler implements AbstractCardEffectHandlerInterface
 {
-    public function supports(ActionCard $card): bool
+    public function supports(AbstractCard $card): bool
     {
         return true;
     }
@@ -26,9 +27,9 @@ class DefaultCardHandler implements ActionCardEffectHandlerInterface
         return [];
     }
 
-    public function execute(ActionCard $card, Player $player, Game $game, array $context = []): ActionCardEffectResult
+    public function execute(AbstractCard $card, Player $player, Game $game, array $context = []): AbstractCardEffectResult
     {
-        return ActionCardEffectResult::success(
+        return AbstractCardEffectResult::success(
             sprintf('Card "%s" played by %s (not yet implemented)',
                 $card->getName(),
                 $player->getUser()->getUsername()

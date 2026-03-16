@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Service\PlaceCardEffect;
+namespace App\Service\AbstractCardEffect;
 
 /**
- * Result of a place card effect execution
+ * Result of an abstract card effect execution
  */
-class PlaceCardEffectResult
+class AbstractCardEffectResult
 {
     private bool $success;
     private string $message;
