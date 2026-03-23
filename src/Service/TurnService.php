@@ -48,22 +48,40 @@ class TurnService
             throw new \RuntimeException('No players available for this game.');
         }
 
-        $d4 = random_int(1, 4);
-        $d6 = random_int(1, 6);
-        $rollTotal = $d4 + $d6;
+        $currentPlaceCardId = $currentPlayer->getPosition()?->getPlaceCard()?->getId();
+
+        $maxRerolls = 50;
+        $attempt = 0;
+        do {
+            $d4 = random_int(1, 4);
+            $d6 = random_int(1, 6);
+            $rollTotal = $d4 + $d6;
+
+            $position = null;
+            $requiresPositionChoice = $rollTotal === 7;
+            if (!$requiresPositionChoice) {
+                $position = $this->positionRepository->findOneByGameAndRoll($game->getId(), $rollTotal);
+                if (!$position) {
+                    throw new \RuntimeException('Position not found for roll: ' . $rollTotal);
+                }
+            }
+
+            $rolledPlaceCardId = $position?->getPlaceCard()?->getId();
+            $samePlaceAsCurrent = $currentPlaceCardId !== null
+                && $rolledPlaceCardId !== null
+                && $currentPlaceCardId === $rolledPlaceCardId;
+
+            $attempt++;
+            if ($attempt > $maxRerolls) {
+                throw new \RuntimeException('Unable to roll a different place card after multiple attempts.');
+            }
+        } while ($samePlaceAsCurrent);
 
         $game->setCurrentTurnRoll($rollTotal);
 
-        $position = null;
-        $requiresPositionChoice = $rollTotal === 7;
         if ($requiresPositionChoice) {
             $game->setTurnPhase(TurnPhase::MOVE);
         } else {
-            $position = $this->positionRepository->findOneByGameAndRoll($game->getId(), $rollTotal);
-            if (!$position) {
-                throw new \RuntimeException('Position not found for roll: ' . $rollTotal);
-            }
-
             $currentPlayer->setPosition($position);
             $game->setTurnPhase(TurnPhase::PLACE_ABILITY);
             $this->entityManager->persist($currentPlayer);
